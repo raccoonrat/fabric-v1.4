@@ -102,6 +102,7 @@ func NewDistributor(chainID string, gossip gossipAdapter, factory CollectionAcce
 
 // Distribute broadcast reliably private data read write set based on policies
 func (d *distributorImpl) Distribute(txID string, privData *transientstore.TxPvtReadWriteSetWithConfigInfo, blkHt uint64) error {
+
 	disseminationPlan, err := d.computeDisseminationPlan(txID, privData, blkHt)
 	if err != nil {
 		return errors.WithStack(err)
@@ -128,25 +129,26 @@ func (d *distributorImpl) computeDisseminationPlan(txID string,
 		}
 
 		for _, collection := range pvtRwset.CollectionPvtRwset {
-			colCP, err := d.getCollectionConfig(configPackage, collection)
+			colCP, err := d.getCollectionConfig(configPackage, collection) //从configPackage中获取collection中的policy字段
 			collectionName := collection.CollectionName
 			if err != nil {
 				logger.Error("Could not find collection access policy for", namespace, " and collection", collectionName, "error", err)
 				return nil, errors.WithMessage(err, fmt.Sprint("could not find collection access policy for", namespace, " and collection", collectionName, "error", err))
 			}
 
-			colAP, err := d.AccessPolicy(colCP, d.chainID)
+			colAP, err := d.AccessPolicy(colCP, d.chainID) //解析collectionconfig中的policy
 			if err != nil {
 				logger.Error("Could not obtain collection access policy, collection name", collectionName, "due to", err)
 				return nil, errors.Wrap(err, fmt.Sprint("Could not obtain collection access policy, collection name", collectionName, "due to", err))
 			}
 
-			colFilter := colAP.AccessFilter()
+			colFilter := colAP.AccessFilter() // AccessFilter返回成员筛选器函数，该函数根据此集合的成员访问策略评估签名数据
 			if colFilter == nil {
 				logger.Error("Collection access policy for", collectionName, "has no filter")
 				return nil, errors.Errorf("No collection access policy filter computed for %v", collectionName)
 			}
 
+			//endorser在处理pvtRwset的时候先从privData中解析出来pvtRwset,在封装在pvtDataMsg中,这个过程中涉及到了endorser节点解析collectionpolicy的过程,来决定向谁distribute
 			pvtDataMsg, err := d.createPrivateDataMessage(txID, namespace, collection, &common.CollectionConfigPackage{Config: []*common.CollectionConfig{colCP}}, blkHt)
 			if err != nil {
 				return nil, errors.WithStack(err)
@@ -241,7 +243,7 @@ func (d *distributorImpl) createPrivateDataMessage(txID, namespace string,
 					Namespace:         namespace,
 					CollectionName:    collection.CollectionName,
 					TxId:              txID,
-					PrivateRwset:      collection.Rwset,
+					PrivateRwset:      collection.Rwset,  //collection.Rwset中就是向non-endorser peer传递的PrivateRwset
 					PrivateSimHeight:  blkHt,
 					CollectionConfigs: ccp,
 				},

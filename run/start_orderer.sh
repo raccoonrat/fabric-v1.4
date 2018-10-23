@@ -1,0 +1,20 @@
+export PROJECT_VERSION=1.2.1
+export BASEIMAGE_RELEASE=0.4.10
+export CORE_LOGGING_LEVEL=DEBUG
+export FABRIC_CFG_PATH=`pwd`
+export FABRIC_ROOT=$GOPATH/src/github.com/hyperledger/fabric
+export ORDERER_GENERAL_LOGLEVEL=DEBUG
+export ORDERER_GENERAL_TLS_ENABLED=false
+export ORDERER_GENERAL_PROFILE_ENABLED=false
+export ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+export ORDERER_GENERAL_LISTENPORT=7050
+export ORDERER_GENERAL_GENESISMETHOD=file
+export ORDERER_GENERAL_GENESISFILE=$GOPATH/src/github.com/hyperledger/fabric/run/channel-artifacts/genesis.block
+export ORDERER_GENERAL_LOCALMSPDIR=$GOPATH/src/github.com/hyperledger/fabric/run/crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/msp
+export ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+export ORDERER_FILELEDGER_LOCATION=$GOPATH/src/github.com/hyperledger/fabric/run/hyperledger/production/orderer
+export CORE_ORDERER_TLS_CERT_FILE=$GOPATH/src/github.com/hyperledger/fabric/run/crypto-config/ordererOrganizations/example.com/orderers/orderers.example.com/tls/server.crt
+export CORE_ORDERER_TLS_KEY_FILE=$GOPATH/src/github.com/hyperledger/fabric/run/crypto-config/ordererOrganizations/example.com/orderers/orderers.example.com/tls/server.key
+export CORE_ORDERER_TLS_ROOTCERT_FILE=$GOPATH/src/github.com/hyperledger/fabric/run/crypto-config/ordererOrganizations/example.com/orderers/orderers.example.com/tls/ca.crt
+
+./orderer start

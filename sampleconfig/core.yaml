@@ -34,7 +34,7 @@ logging:
     # Default for all modules running within the scope of a peer.
     # Note: this value is only used when --logging-level or CORE_LOGGING_LEVEL
     #       are not set
-    level:       info
+    level:       debug
 
     # The overall default values mentioned above can be overridden for the
     # specific components listed in the override section below.
@@ -47,7 +47,7 @@ logging:
     msp:        warning
     policies:   warning
     peer:
-        gossip: warning
+        gossip: debug
 
     # Message format for the peer logs
     format: '%{color}%{time:2006-01-02 15:04:05.000 MST} [%{module}] %{shortfunc} -> %{level:.4s} %{id:03x}%{color:reset} %{message}'

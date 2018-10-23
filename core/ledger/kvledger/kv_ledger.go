@@ -268,7 +268,7 @@ func (l *kvLedger) CommitWithPvtData(pvtdataAndBlock *ledger.BlockAndPvtData) er
 	logger.Debugf("[%s] Committing block [%d] to storage", l.ledgerID, blockNo)
 	l.blockAPIsRWLock.Lock()
 	defer l.blockAPIsRWLock.Unlock()
-	if err = l.blockStore.CommitWithPvtData(pvtdataAndBlock); err != nil {
+	if err = l.blockStore.CommitWithPvtData(pvtdataAndBlock); err != nil { //向blockstore中提交数据
 		return err
 	}
 	elapsedCommitBlockStorage := time.Since(startCommitBlockStorage) / time.Millisecond // duration in ms

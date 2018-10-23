@@ -175,6 +175,7 @@ func GetGossipService() GossipService {
 // DistributePrivateData distribute private read write set inside the channel based on the collections policies
 func (g *gossipServiceImpl) DistributePrivateData(chainID string, txID string, privData *transientstore.TxPvtReadWriteSetWithConfigInfo, blkHt uint64) error {
 	g.lock.RLock()
+	logger.Debugf("[GQX]:DistributePrivateData")
 	handler, exists := g.privateHandlers[chainID]
 	g.lock.RUnlock()
 	if !exists {

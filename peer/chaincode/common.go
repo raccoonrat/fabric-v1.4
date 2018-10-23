@@ -445,14 +445,18 @@ func ChaincodeInvokeOrQuery(
 		funcName = "query"
 	}
 
-	// extract the transient field if it exists
-	var tMap map[string][]byte
-	if transient != "" {
-		if err := json.Unmarshal([]byte(transient), &tMap); err != nil {
-			return nil, errors.Wrap(err, "error parsing transient string")
-		}
-	}
+	//var tMap map[string][]byte
+	tMap := make(map[string][]byte)
 
+	// Testing of argument "chancodeKey" parsing by invoke
+	transient = chaincodeKey
+	//if transient != "" {
+	//  if err := json.Unmarshal([]byte(transient), &tMap); err != nil {
+	//    return nil, errors.Wrap(err, "error parsing transient string")
+	//  }
+	//}
+
+	tMap["key"]=[]byte(transient)
 	prop, txid, err := putils.CreateChaincodeProposalWithTxIDAndTransient(pcommon.HeaderType_ENDORSER_TRANSACTION, cID, invocation, creator, txID, tMap)
 	if err != nil {
 		return nil, errors.WithMessage(err, fmt.Sprintf("error creating proposal for %s", funcName))

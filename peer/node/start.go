@@ -120,7 +120,7 @@ func serve(args []string) error {
 	// Idemix does not support this *YET* but it can be easily
 	// fixed to support it. For now, we just make sure that
 	// the peer only comes up with the standard MSP
-	mspType := mgmt.GetLocalMSP().GetType()
+	mspType := mgmt.GetLocalMSP().GetType()   //获取本地MSP
 	if mspType != msp.FABRIC {
 		panic("Unsupported msp type " + msp.ProviderTypeToString(mspType))
 	}
@@ -129,7 +129,7 @@ func serve(args []string) error {
 	// variables or core.yaml
 	overrideLogModules := []string{"msp", "gossip", "ledger", "cauthdsl", "policies", "grpc", "peer.gossip"}
 	for _, module := range overrideLogModules {
-		err := common.SetLogLevelFromViper(module)
+		err := common.SetLogLevelFromViper(module) // SetLogLevelFromViper将“module”记录器的日志级别设置为core.yaml中的值
 		if err != nil {
 			logger.Warningf("Error setting log level for module '%s': %s", module, err.Error())
 		}
@@ -144,7 +144,7 @@ func serve(args []string) error {
 
 	//startup aclmgmt with default ACL providers (resource based and default 1.0 policies based).
 	//Users can pass in their own ACLProvider to RegisterACLProvider (currently unit tests do this)
-	aclProvider := aclmgmt.NewACLProvider(
+	aclProvider := aclmgmt.NewACLProvider( //使用默认ACL提供程序启动aclmgmt（基于资源和默认1.0策略）。 //用户可以将自己的ACLProvider传递给RegisterACLProvider（目前单元测试执行此操作）
 		aclmgmt.ResourceGetter(peer.GetStableChannelConfig),
 	)
 
@@ -175,11 +175,11 @@ func serve(args []string) error {
 
 	}
 
-	if err := peer.CacheConfiguration(); err != nil {
+	if err := peer.CacheConfiguration(); err != nil {  //常用配置常量的缓存值。
 		return err
 	}
 
-	peerEndpoint, err := peer.GetPeerEndpoint()
+	peerEndpoint, err := peer.GetPeerEndpoint()  // GetPeerEndpoint从缓存配置返回peerEndpoint
 	if err != nil {
 		err = fmt.Errorf("Failed to get Peer Endpoint: %s", err)
 		return err
@@ -192,7 +192,7 @@ func serve(args []string) error {
 
 	listenAddr := viper.GetString("peer.listenAddress")
 
-	serverConfig, err := peer.GetServerConfig()
+	serverConfig, err := peer.GetServerConfig()   // GetServerConfig返回peer节点的gRPC服务器配置
 	if err != nil {
 		logger.Fatalf("Error loading secure config for peer (%s)", err)
 	}
@@ -202,13 +202,13 @@ func serve(args []string) error {
 		logger.Fatalf("Failed to create peer server (%s)", err)
 	}
 
-	if serverConfig.SecOpts.UseTLS {
+	if serverConfig.SecOpts.UseTLS { //如果通过TLS通信
 		logger.Info("Starting peer with TLS enabled")
 		// set up credential support
 		cs := comm.GetCredentialSupport()
 		cs.ServerRootCAs = serverConfig.SecOpts.ServerRootCAs
 
-		// set the cert to use if client auth is requested by remote endpoints
+		// set the cert to use if client auth is requested by remote endpoints	//如果远程端点请求客户端身份验证，则设置要使用的TLS证书
 		clientCert, err := peer.GetClientCertificate()
 		if err != nil {
 			logger.Fatalf("Failed to set TLS client certificate (%s)", err)
@@ -217,14 +217,14 @@ func serve(args []string) error {
 	}
 
 	mutualTLS := serverConfig.SecOpts.UseTLS && serverConfig.SecOpts.RequireClientCert
-	policyCheckerProvider := func(resourceName string) deliver.PolicyCheckerFunc {
+	policyCheckerProvider := func(resourceName string) deliver.PolicyCheckerFunc { // CheckPolicy调用pcf（envelope，channelID）
 		return func(env *cb.Envelope, channelID string) error {
 			return aclProvider.CheckACL(resourceName, channelID, env)
 		}
 	}
 
-	abServer := peer.NewDeliverEventsServer(mutualTLS, policyCheckerProvider, &peer.DeliverChainManager{})
-	pb.RegisterDeliverServer(peerServer.Server(), abServer)
+	abServer := peer.NewDeliverEventsServer(mutualTLS, policyCheckerProvider, &peer.DeliverChainManager{})  // NewDeliverEventsServer创建peer.Deliver服务器以传递阻止和过滤的块事件
+	pb.RegisterDeliverServer(peerServer.Server(), abServer)   // RegisterService将服务及其实现注册到gRPC服务器。它是从IDL生成的代码中调用的。必须在调用Serve之前调用它。
 
 	// Initialize chaincode service
 	chaincodeSupport, ccp, sccp, packageProvider := startChaincodeServer(peerHost, aclProvider, pr)
@@ -273,7 +273,7 @@ func serve(args []string) error {
 	endorserSupport.PluginEndorser = pluginEndorser
 	serverEndorser := endorser.NewEndorserServer(privDataDist, endorserSupport, pr)
 	auth := authHandler.ChainFilters(serverEndorser, authFilters...)
-	// Register the Endorser server
+	// Register the Endorser server //注册endorser服务
 	pb.RegisterEndorserServer(peerServer.Server(), auth)
 
 	policyMgr := peer.NewChannelPolicyManagerGetter()

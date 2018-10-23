@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/storageutil"
+	//"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/txmgr"
 
 	commonledger "github.com/hyperledger/fabric/common/ledger"
@@ -22,6 +23,8 @@ import (
 	"github.com/hyperledger/fabric/protos/ledger/rwset/kvrwset"
 	"github.com/pkg/errors"
 )
+
+//var logger = flogging.MustGetLogger("helper")
 
 type queryHelper struct {
 	txmgr             *LockBasedTxMgr

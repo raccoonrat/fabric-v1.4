@@ -9,6 +9,7 @@ package leveldbhelper
 import (
 	"fmt"
 	"sync"
+	//"encoding/base64"
 
 	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/common/ledger/util"
@@ -97,6 +98,11 @@ func (dbInst *DB) Close() {
 // Get returns the value for the given key
 func (dbInst *DB) Get(key []byte) ([]byte, error) {
 	value, err := dbInst.db.Get(key, dbInst.readOpts)
+	//fmt.Println("----------------db-value--------------------",value)
+	//fmt.Println("----------------string value--------------------",string(value))
+	//decondevalue,_ := base64.StdEncoding.DecodeString(string(value))
+	//fmt.Println("----------------db-value---decondevalue-----------------",decondevalue)
+	//fmt.Println("----------------db-value---string(decondevalue)-----------------",string(decondevalue))
 	if err == leveldb.ErrNotFound {
 		value = nil
 		err = nil

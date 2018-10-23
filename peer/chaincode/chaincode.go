@@ -67,6 +67,7 @@ var (
 	chaincodeCtorJSON     string
 	chaincodePath         string
 	chaincodeName         string
+	chaincodeKey          string
 	chaincodeUsr          string // Not used
 	chaincodeQueryRaw     bool
 	chaincodeQueryHex     bool
@@ -105,7 +106,6 @@ func init() {
 // Explicitly define a method to facilitate tests
 func resetFlags() {
 	flags = &pflag.FlagSet{}
-
 	flags.StringVarP(&chaincodeLang, "lang", "l", "golang",
 		fmt.Sprintf("Language the %s is written in", chainFuncName))
 	flags.StringVarP(&chaincodeCtorJSON, "ctor", "c", "{}",
@@ -114,6 +114,8 @@ func resetFlags() {
 		fmt.Sprintf("Path to %s", chainFuncName))
 	flags.StringVarP(&chaincodeName, "name", "n", common.UndefinedParamValue,
 		fmt.Sprint("Name of the chaincode"))
+	flags.StringVarP(&chaincodeKey, "key", "k", common.UndefinedParamValue,
+		fmt.Sprint("Key of the encryption")) //to receive the key for encryption
 	flags.StringVarP(&chaincodeVersion, "version", "v", common.UndefinedParamValue,
 		fmt.Sprint("Version of the chaincode specified in install/instantiate/upgrade commands"))
 	flags.StringVarP(&chaincodeUsr, "username", "u", common.UndefinedParamValue,

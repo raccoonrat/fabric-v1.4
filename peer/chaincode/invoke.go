@@ -28,6 +28,7 @@ func invokeCmd(cf *ChaincodeCmdFactory) *cobra.Command {
 	}
 	flagList := []string{
 		"name",
+		"key",
 		"ctor",
 		"channelID",
 		"peerAddresses",

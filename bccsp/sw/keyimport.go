@@ -36,11 +36,9 @@ func (*aes256ImportKeyOptsKeyImporter) KeyImport(raw interface{}, opts bccsp.Key
 	if !ok {
 		return nil, errors.New("Invalid raw material. Expected byte array.")
 	}
-
 	if aesRaw == nil {
 		return nil, errors.New("Invalid raw material. It must not be nil.")
 	}
-
 	if len(aesRaw) != 32 {
 		return nil, fmt.Errorf("Invalid Key Length [%d]. Must be 32 bytes", len(aesRaw))
 	}
