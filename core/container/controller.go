@@ -172,6 +172,8 @@ func (si StopContainerReq) GetCCID() ccintf.CCID {
 
 func (vmc *VMController) Process(vmtype string, req VMCReq) error {
 	v := vmc.newVM(vmtype)
+	ccid := req.GetCCID()
+	id := ccid.GetName()
 
 	vmc.lockContainer(id)
 	defer vmc.unlockContainer(id)

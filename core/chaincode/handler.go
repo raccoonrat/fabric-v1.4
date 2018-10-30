@@ -7,30 +7,32 @@ SPDX-License-Identifier: Apache-2.0
 package chaincode
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"strings"
 	"sync"
 	"time"
-	"bytes"
 
 	b64 "encoding/base64"
 	"encoding/json"
-	"github.com/hyperledger/fabric/protos/utils"
-	b "github.com/hyperledger/fabric/bccsp"
-	"github.com/hyperledger/fabric/msp/mgmt"
+
 	"github.com/golang/protobuf/proto"
+	b "github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric/common/channelconfig"
 	"github.com/hyperledger/fabric/common/flogging"
 	commonledger "github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/core/aclmgmt/resources"
+	"github.com/hyperledger/fabric/core/chaincode/shim/ext/entities"
 	"github.com/hyperledger/fabric/core/common/ccprovider"
 	"github.com/hyperledger/fabric/core/common/sysccprovider"
 	"github.com/hyperledger/fabric/core/container/ccintf"
 	"github.com/hyperledger/fabric/core/ledger"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/version"
 	"github.com/hyperledger/fabric/core/ledger/ledgerconfig"
-	"github.com/hyperledger/fabric/core/chaincode/shim/ext/entities"
+	"github.com/hyperledger/fabric/msp/mgmt"
 	pb "github.com/hyperledger/fabric/protos/peer"
+	"github.com/hyperledger/fabric/protos/utils"
 	"github.com/pkg/errors"
 )
 
@@ -231,6 +233,9 @@ func (h *Handler) handleMessageReadyState(msg *pb.ChaincodeMessage) error {
 		go h.HandleTransaction(msg, h.HandleGetStateMetadata)
 	case pb.ChaincodeMessage_PUT_STATE_METADATA:
 		go h.HandleTransaction(msg, h.HandlePutStateMetadata)
+
+	case pb.ChaincodeMessage_GET_STATE_VERSION:
+		go h.HandleTransaction(msg, h.HandleGetStateVersion)
 	default:
 		return fmt.Errorf("[%s] Fabric side handler cannot handle message (%s) while in ready state", msg.Txid, msg.Type)
 	}
@@ -615,18 +620,68 @@ func (h *Handler) HandleGetState(msg *pb.ChaincodeMessage, txContext *Transactio
 	isscc := h.SystemCCProvider.IsSysCC(h.ccInstance.ChaincodeName)
 	if !isscc {
 		//GQX: first should decrypt res
-		res_decrypt,_ := h.decryptChaincodeInput(res,deckey)
+		res_decrypt, _ := h.decryptChaincodeInput(res, deckey)
 		//GQX: then should Decode from res_decrypt,that we can get message
-		res_db64 ,_:= b64.StdEncoding.DecodeString(string(res_decrypt))
+		res_db64, _ := b64.StdEncoding.DecodeString(string(res_decrypt))
 		// Send response msg back to chaincode. GetState will not trigger event
 		return &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_RESPONSE, Payload: res_db64, Txid: msg.Txid, ChannelId: msg.ChannelId}, nil
-	}else {
+	} else {
 		// Send response msg back to chaincode. GetState will not trigger event
 		return &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_RESPONSE, Payload: res, Txid: msg.Txid, ChannelId: msg.ChannelId}, nil
 	}
 
+}
 
+// Handles query to ledger to get state height
 
+func (h *Handler) HandleGetStateVersion(msg *pb.ChaincodeMessage, txContext *TransactionContext) (*pb.ChaincodeMessage, error) {
+
+	getStateHeight := &pb.GetStateVersion{}
+	err := proto.Unmarshal(msg.Payload, getStateHeight)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal failed")
+	}
+
+	chaincodeName := h.ChaincodeName()
+	chaincodeLogger.Debugf("[%s] getting state height for chaincode %s, key %s, channel %s",
+		shorttxid(msg.Txid),
+		chaincodeName,
+		getStateHeight.Key,
+		txContext.ChainID)
+
+	var height *version.Height
+	if isCollectionSet(getStateHeight.Collection) {
+		height, err = txContext.TXSimulator.GetPrivateDataVersion(
+			chaincodeName,
+			getStateHeight.Collection,
+			getStateHeight.Key,
+		)
+	} else {
+		height, err = txContext.TXSimulator.GetStateVersion(
+			chaincodeName,
+			getStateHeight.Key,
+		)
+	}
+	if err != nil {
+		return nil, errors.Wrap(err, "txsim.GetStateHeight failed")
+	}
+
+	versionResult := pb.StateVersion{
+		BlockNum: height.BlockNum,
+		TxNum:    height.TxNum,
+	}
+	res, err := proto.Marshal(&versionResult)
+	if err != nil {
+		return nil, errors.Wrap(err, "pb marshal failed")
+	}
+
+	chaincodeLogger.Debugf("Got height for the key, Sending %s", pb.ChaincodeMessage_RESPONSE)
+	return &pb.ChaincodeMessage{
+		Type:      pb.ChaincodeMessage_RESPONSE,
+		Payload:   res,
+		Txid:      msg.Txid,
+		ChannelId: msg.ChannelId,
+	}, nil
 }
 
 // Handles query to ledger to get state metadata
@@ -990,7 +1045,7 @@ type inputByteArgs struct {
 	Args *[][]byte
 }
 
-func (handler *Handler) getEncrypterEntity(id string,encryptKey string) (*entities.BCCSPEncrypterEntity, error) {
+func (handler *Handler) getEncrypterEntity(id string, encryptKey string) (*entities.BCCSPEncrypterEntity, error) {
 	var bccspInst b.BCCSP
 	var err error
 	mspid, err := mgmt.GetLocalMSP().GetIdentifier()
@@ -1007,7 +1062,7 @@ func (handler *Handler) getEncrypterEntity(id string,encryptKey string) (*entiti
 
 	// TEST BY WYH for generate mock aes256 key
 	// ONLY SUPPORT AES256, THE KEY LENGTH MUST 32BYTES
-	ent, err:= entities.NewAES256EncrypterEntity(id, bccspInst, []byte(encryptKey), nil)
+	ent, err := entities.NewAES256EncrypterEntity(id, bccspInst, []byte(encryptKey), nil)
 	chaincodeLogger.Debugf("WYH test get key %s.")
 	if err != nil {
 		return nil, fmt.Errorf("GetEncrypterEntityForTest error: NewEncrypterEntity returned %s", err)
@@ -1015,15 +1070,16 @@ func (handler *Handler) getEncrypterEntity(id string,encryptKey string) (*entiti
 
 	return ent, nil
 }
+
 // encrypt the []byte-based current ChaincodeInput structure, the key group by channanl id.
-func (handler *Handler) encryptChaincodeInput(src []byte,enckey string) ( []byte, error ){
+func (handler *Handler) encryptChaincodeInput(src []byte, enckey string) ([]byte, error) {
 	var err error
 	if src == nil {
 		chaincodeLogger.Debug("[WYH]error: src args invalid.  Cannot process")
 		return nil, fmt.Errorf("[WYH] error: src args invalid.  Cannot process")
 	}
 
-	encEntities, err := handler.getEncrypterEntity("WYH",enckey)
+	encEntities, err := handler.getEncrypterEntity("WYH", enckey)
 	if err != nil {
 		chaincodeLogger.Debug("Cannot get the entity of encryption for this Txid. Cannot process.")
 		return nil, fmt.Errorf("[WYH]encryptChaincodeInput error: getEncrypterEntity returned %s", err)
@@ -1035,44 +1091,42 @@ func (handler *Handler) encryptChaincodeInput(src []byte,enckey string) ( []byte
 	}
 	encEnt1 := encEnt.(entities.EncrypterEntity)
 
-
 	//Add GQX Encry it!!
 	einputArgs, err := encEnt1.Encrypt(src)
 
-	return einputArgs,nil
+	return einputArgs, nil
 }
 
-
 // encrypt the []byte-based current ChaincodeInput structure, the key group by channanl id.
-func (handler *Handler) decryptChaincodeInput( dest []byte,decryptkey string) ([]byte, error) {
+func (handler *Handler) decryptChaincodeInput(dest []byte, decryptkey string) ([]byte, error) {
 	var err error
-	if dest == nil  {
+	if dest == nil {
 		chaincodeLogger.Debug("[WYH]error: src args invalid.  Cannot process")
-		return nil,fmt.Errorf("[WYH] error: src args invalid.  Cannot process")
+		return nil, fmt.Errorf("[WYH] error: src args invalid.  Cannot process")
 	}
 
-	encEntities, err := handler.getEncrypterEntity("WYH",decryptkey)
+	encEntities, err := handler.getEncrypterEntity("WYH", decryptkey)
 	if err != nil {
 		chaincodeLogger.Debug("Cannot get the entity of encryption for this Txid. Cannot process.")
-		return nil,fmt.Errorf("[WYH]encryptChaincodeInput error: getEncrypterEntity returned %s", err)
+		return nil, fmt.Errorf("[WYH]encryptChaincodeInput error: getEncrypterEntity returned %s", err)
 	}
 	encEnt, err := encEntities.Public()
 	if err != nil {
-		return nil,fmt.Errorf("[WYH]encryptChaincodeInput error: Public() returned %s", encEnt)
+		return nil, fmt.Errorf("[WYH]encryptChaincodeInput error: Public() returned %s", encEnt)
 	}
 	encEnt1 := encEnt.(entities.EncrypterEntity)
 
 	//Add GQX Decrypt it!!
 	m, _ := encEnt1.Decrypt(dest)
-	chaincodeLogger.Debugf("[GQX] the message decrypt from dest :",string(m))
-	return m,nil
+	chaincodeLogger.Debugf("[GQX] the message decrypt from dest :", string(m))
+	return m, nil
 }
 
 func (h *Handler) HandlePutState(msg *pb.ChaincodeMessage, txContext *TransactionContext) (*pb.ChaincodeMessage, error) {
 
 	//the default encryptkey is "anykey"
-	encryptkey  := "anykey"
-	chaincodeLogger.Debugf("[GQX]set the default encryptkey",encryptkey)
+	encryptkey := "anykey"
+	chaincodeLogger.Debugf("[GQX]set the default encryptkey", encryptkey)
 
 	if txContext.SignedProp != nil {
 		if txContext.SignedProp.ProposalBytes != nil {
@@ -1089,7 +1143,7 @@ func (h *Handler) HandlePutState(msg *pb.ChaincodeMessage, txContext *Transactio
 			}
 			// get TransientMap
 			encryptkey = string(cpp.TransientMap["key"][:])
-			chaincodeLogger.Debugf("[GQX]get the encryptkey from TransactionContext",encryptkey)
+			chaincodeLogger.Debugf("[GQX]get the encryptkey from TransactionContext", encryptkey)
 		}
 	}
 
@@ -1105,12 +1159,12 @@ func (h *Handler) HandlePutState(msg *pb.ChaincodeMessage, txContext *Transactio
 		if !isscc {
 			//先编码
 			b64value := b64.StdEncoding.EncodeToString(putState.Value)
-			chaincodeLogger.Debugf("[GQX] first should encode the putstate.value:",b64value)
+			chaincodeLogger.Debugf("[GQX] first should encode the putstate.value:", b64value)
 			//再加密
-			value,_ := h.encryptChaincodeInput([]byte(b64value),encryptkey)
-			chaincodeLogger.Debugf("[GQX] the should encrypt the encoded value::",string(value))
+			value, _ := h.encryptChaincodeInput([]byte(b64value), encryptkey)
+			chaincodeLogger.Debugf("[GQX] the should encrypt the encoded value::", string(value))
 			err = txContext.TXSimulator.SetPrivateData(chaincodeName, putState.Collection, putState.Key, value)
-		}else {
+		} else {
 			err = txContext.TXSimulator.SetPrivateData(chaincodeName, putState.Collection, putState.Key, putState.Value)
 		}
 
@@ -1177,7 +1231,7 @@ func (h *Handler) HandleDelState(msg *pb.ChaincodeMessage, txContext *Transactio
 func (h *Handler) HandleInvokeChaincode(msg *pb.ChaincodeMessage, txContext *TransactionContext) (*pb.ChaincodeMessage, error) {
 	chaincodeLogger.Debugf("[%s] C-call-C", shorttxid(msg.Txid))
 	chaincodeSpec := &pb.ChaincodeSpec{}
-	fmt.Println("********************HandleInvokeChaincode***************************",chaincodeSpec.ChaincodeId.Name)
+	fmt.Println("********************HandleInvokeChaincode***************************", chaincodeSpec.ChaincodeId.Name)
 	err := proto.Unmarshal(msg.Payload, chaincodeSpec)
 	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal failed")

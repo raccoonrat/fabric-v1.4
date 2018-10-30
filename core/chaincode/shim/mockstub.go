@@ -165,6 +165,10 @@ func (stub *MockStub) GetPrivateData(collection string, key string) ([]byte, err
 	return m[key], nil
 }
 
+func (stub *MockStub) GetPrivateDataVersion(collection string, key string) (*pb.StateVersion, error) {
+	return &pb.StateVersion{}, nil
+}
+
 func (stub *MockStub) PutPrivateData(collection string, key string, value []byte) error {
 	m, in := stub.PvtState[collection]
 	if !in {
@@ -201,6 +205,12 @@ func (stub *MockStub) GetState(key string) ([]byte, error) {
 	value := stub.State[key]
 	mockLogger.Debug("MockStub", stub.Name, "Getting", key, value)
 	return value, nil
+}
+
+func (stub *MockStub) GetStateVersion(key string) (*pb.StateVersion, error) {
+	//ver := &pb.StateVersion{"1", 0}
+	//mockLogger.Debug("MockStub", stub.Name, "Getting", key, value)
+	return &pb.StateVersion{}, nil
 }
 
 // PutState writes the specified `value` and `key` into the ledger.

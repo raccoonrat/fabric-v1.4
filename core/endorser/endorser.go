@@ -139,8 +139,7 @@ func (e *Endorser) callChaincode(txParams *ccprovider.TransactionParams, version
 	var ccevent *pb.ChaincodeEvent
 
 	// is this a system chaincode
-	scc := e.s.IsSysCC(cid.Name)
-	res, ccevent, err = e.s.Execute(txParams, txParams.ChannelID, cid.Name, version, txParams.TxID, scc, txParams.SignedProp, txParams.Proposal, input)
+	res, ccevent, err = e.s.Execute(txParams, txParams.ChannelID, cid.Name, version, txParams.TxID, txParams.SignedProp, txParams.Proposal, input)
 	if err != nil {
 		return nil, nil, err
 	}

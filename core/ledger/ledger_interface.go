@@ -11,6 +11,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	commonledger "github.com/hyperledger/fabric/common/ledger"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/version"
 	"github.com/hyperledger/fabric/protos/common"
 	"github.com/hyperledger/fabric/protos/ledger/rwset"
 	"github.com/hyperledger/fabric/protos/ledger/rwset/kvrwset"
@@ -121,6 +122,8 @@ type QueryExecutor interface {
 	SimpleQueryExecutor
 	// GetStateMetadata returns the metadata for given namespace and key
 	GetStateMetadata(namespace, key string) (map[string][]byte, error)
+	// GetStateHeight returns the height for given namespace and key
+	GetStateVersion(namespace, key string) (*version.Height, error)
 	// GetStateMultipleKeys gets the values for multiple keys in a single call
 	GetStateMultipleKeys(namespace string, keys []string) ([][]byte, error)
 	// GetStateRangeScanIteratorWithMetadata returns an iterator that contains all the key-values between given key ranges.
@@ -145,6 +148,8 @@ type QueryExecutor interface {
 	GetPrivateData(namespace, collection, key string) ([]byte, error)
 	// GetPrivateDataMetadata gets the metadata of a private data item identified by a tuple <namespace, collection, key>
 	GetPrivateDataMetadata(namespace, collection, key string) (map[string][]byte, error)
+	// GetPrivateDataHeight gets the height of a private data item identified by a tuple <namespace, collection, key>
+	GetPrivateDataVersion(namespace, collection, key string) (*version.Height, error)
 	// GetPrivateDataMetadataByHash gets the metadata of a private data item identified by a tuple <namespace, collection, keyhash>
 	GetPrivateDataMetadataByHash(namespace, collection string, keyhash []byte) (map[string][]byte, error)
 	// GetPrivateDataMultipleKeys gets the values for the multiple private data items in a single call
