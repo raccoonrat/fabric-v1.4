@@ -353,6 +353,15 @@ func (handler *Handler) handleGetStateVersion(collection string, key string, cha
 		chaincodeLogger.Debugf("[%s] GetStateVersion received payload %s",
 			shorttxid(responseMsg.Txid), pb.ChaincodeMessage_RESPONSE)
 
+		if responseMsg.Payload == nil {
+			chaincodeLogger.Infof(
+				"[%s] no version attached with the key %s",
+				txid,
+				key,
+			)
+			return nil, nil
+		}
+
 		version := &pb.StateVersion{}
 		err := proto.Unmarshal(responseMsg.Payload, version)
 		if err != nil {

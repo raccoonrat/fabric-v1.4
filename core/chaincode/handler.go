@@ -577,24 +577,6 @@ func (h *Handler) checkMetadataCap(msg *pb.ChaincodeMessage) error {
 func (h *Handler) HandleGetState(msg *pb.ChaincodeMessage, txContext *TransactionContext) (*pb.ChaincodeMessage, error) {
 
 	//the default deckey is "decryptkey"
-	deckey := "decryptkey"
-	if txContext.SignedProp != nil {
-		if txContext.SignedProp.ProposalBytes != nil {
-			// get Proposal
-			prop, err := utils.GetProposal(txContext.SignedProp.ProposalBytes)
-			if err != nil {
-				fmt.Println("Fail to get Proposal")
-			}
-			// get ChaincodeProposalPayload
-			cpp, err := utils.GetChaincodeProposalPayload(prop.Payload)
-			if err != nil {
-				fmt.Println("Fail to get ChaincodeProposalPayload")
-			}
-			// get TransientMap
-			deckey = string(cpp.TransientMap["key"][:])
-
-		}
-	}
 	key := string(msg.Payload)
 	getState := &pb.GetState{}
 	err := proto.Unmarshal(msg.Payload, getState)
@@ -618,7 +600,8 @@ func (h *Handler) HandleGetState(msg *pb.ChaincodeMessage, txContext *Transactio
 		chaincodeLogger.Debugf("[%s] No state associated with key: %s. Sending %s with an empty payload", shorttxid(msg.Txid), key, pb.ChaincodeMessage_RESPONSE)
 	}
 	isscc := h.SystemCCProvider.IsSysCC(h.ccInstance.ChaincodeName)
-	if !isscc {
+	deckey, ok := h.GetCryptoKeyFromProp(txContext)
+	if !isscc && ok {
 		//GQX: first should decrypt res
 		res_decrypt, _ := h.decryptChaincodeInput(res, deckey)
 		//GQX: then should Decode from res_decrypt,that we can get message
@@ -664,6 +647,19 @@ func (h *Handler) HandleGetStateVersion(msg *pb.ChaincodeMessage, txContext *Tra
 	}
 	if err != nil {
 		return nil, errors.Wrap(err, "txsim.GetStateHeight failed")
+	}
+
+	if height == nil {
+		chaincodeLogger.Debugf(
+			"[%s] No state associated with key: %s. Sending %s with an empty payload",
+			shorttxid(msg.Txid),
+			getStateHeight.Key, pb.ChaincodeMessage_RESPONSE)
+		return &pb.ChaincodeMessage{
+			Type:      pb.ChaincodeMessage_RESPONSE,
+			Payload:   nil,
+			Txid:      msg.Txid,
+			ChannelId: msg.ChannelId,
+		}, nil
 	}
 
 	versionResult := pb.StateVersion{
@@ -1122,8 +1118,7 @@ func (handler *Handler) decryptChaincodeInput(dest []byte, decryptkey string) ([
 	return m, nil
 }
 
-func (h *Handler) HandlePutState(msg *pb.ChaincodeMessage, txContext *TransactionContext) (*pb.ChaincodeMessage, error) {
-
+func (h *Handler) GetCryptoKeyFromProp(txContext *TransactionContext) (string, bool) {
 	//the default encryptkey is "anykey"
 	encryptkey := "anykey"
 	chaincodeLogger.Debugf("[GQX]set the default encryptkey", encryptkey)
@@ -1142,10 +1137,15 @@ func (h *Handler) HandlePutState(msg *pb.ChaincodeMessage, txContext *Transactio
 				fmt.Println("[LDH]error: Fail to get ChaincodeProposalPayload")
 			}
 			// get TransientMap
-			encryptkey = string(cpp.TransientMap["key"][:])
+			keyBytes, ok := cpp.TransientMap["key"]
 			chaincodeLogger.Debugf("[GQX]get the encryptkey from TransactionContext", encryptkey)
+			return string(keyBytes[:]), ok
 		}
 	}
+	return "", false
+}
+
+func (h *Handler) HandlePutState(msg *pb.ChaincodeMessage, txContext *TransactionContext) (*pb.ChaincodeMessage, error) {
 
 	putState := &pb.PutState{}
 	err := proto.Unmarshal(msg.Payload, putState)
@@ -1156,7 +1156,8 @@ func (h *Handler) HandlePutState(msg *pb.ChaincodeMessage, txContext *Transactio
 	chaincodeName := h.ChaincodeName()
 	if isCollectionSet(putState.Collection) {
 		isscc := h.SystemCCProvider.IsSysCC(h.ccInstance.ChaincodeName)
-		if !isscc {
+		encryptKey, ok := h.GetCryptoKeyFromProp(txContext)
+		if !isscc && ok {
 			//先编码
 			b64value := b64.StdEncoding.EncodeToString(putState.Value)
 			chaincodeLogger.Debugf("[GQX] first should encode the putstate.value:", b64value)
