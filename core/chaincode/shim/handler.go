@@ -685,6 +685,47 @@ func (handler *Handler) handleGetQueryResult(collection string, query string, me
 	return nil, errors.Errorf("incorrect chaincode message %s received. Expecting %s or %s", responseMsg.Type, pb.ChaincodeMessage_RESPONSE, pb.ChaincodeMessage_ERROR)
 }
 
+func (handler *Handler) handleGetHistoryTxIDByBlockNumTxNum(
+	channelId string,
+	blockNum, txNum uint64,
+	txid string) (string, error) {
+
+	payloadBytes, _ := proto.Marshal(&pb.GetHistoryTxIDByBlockNumTxNum{
+		BlockNum: blockNum,
+		TxNum:    txNum,
+	})
+
+	msg := &pb.ChaincodeMessage{
+		Type:      pb.ChaincodeMessage_GET_HISTORY_TXID_BY_BLOCKNUMTXNUM,
+		Payload:   payloadBytes,
+		Txid:      txid,
+		ChannelId: channelId,
+	}
+	chaincodeLogger.Debugf("[%s] sending %s", shorttxid(msg.Txid),
+		pb.ChaincodeMessage_GET_HISTORY_TXID_BY_BLOCKNUMTXNUM)
+	resp, err := handler.callPeerWithChaincodeMsg(msg, channelId, txid)
+	if err != nil {
+		return "", errors.WithMessage(
+			err, fmt.Sprintf(
+				"[%s] GET_HISTORY_TXID error sending", shorttxid(txid)))
+	}
+	if resp.Type.String() ==
+		pb.ChaincodeMessage_RESPONSE.String() {
+		// Success response
+		chaincodeLogger.Debugf(
+			"[%s] GET_HISTORY_TXID received payload %s",
+			shorttxid(resp.Txid), pb.ChaincodeMessage_RESPONSE)
+		return string(resp.Payload[:]), nil
+	}
+	if resp.Type.String() == pb.ChaincodeMessage_ERROR.String() {
+		// Error response
+		chaincodeLogger.Errorf("[%s] GetHistoryTXID received error %s", shorttxid(resp.Txid), pb.ChaincodeMessage_ERROR)
+		return "", errors.New(string(resp.Payload[:]))
+	}
+	chaincodeLogger.Errorf("[%s] Incorrect chaincode message %s received. Expecting %s or %s", shorttxid(resp.Txid), resp.Type, pb.ChaincodeMessage_RESPONSE, pb.ChaincodeMessage_ERROR)
+	return "", errors.Errorf("[%s] incorrect chaincode message %s received. Expecting %s or %s", shorttxid(resp.Txid), resp.Type, pb.ChaincodeMessage_RESPONSE, pb.ChaincodeMessage_ERROR)
+}
+
 func (handler *Handler) handleGetHistoryForKey(key string, channelId string, txid string) (*pb.QueryResponse, error) {
 	// Create the channel on which to communicate the response from validating peer
 	var respChan chan pb.ChaincodeMessage

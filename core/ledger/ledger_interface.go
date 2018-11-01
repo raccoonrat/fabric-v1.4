@@ -52,6 +52,8 @@ type PeerLedger interface {
 	GetBlockByHash(blockHash []byte) (*common.Block, error)
 	// GetBlockByTxID returns a block which contains a transaction
 	GetBlockByTxID(txID string) (*common.Block, error)
+	//GetTxByBlockNumTranNum returns a tansaction by block num and tx num
+	GetTxIDByBlockNumTxNum(blockNum, transNum uint64) (string, error)
 	// GetTxValidationCodeByTxID returns reason code of transaction validation
 	GetTxValidationCodeByTxID(txID string) (peer.TxValidationCode, error)
 	// NewTxSimulator gives handle to a transaction simulator.
@@ -174,6 +176,8 @@ type HistoryQueryExecutor interface {
 	// GetHistoryForKey retrieves the history of values for a key.
 	// The returned ResultsIterator contains results of type *KeyModification which is defined in protos/ledger/queryresult.
 	GetHistoryForKey(namespace string, key string) (commonledger.ResultsIterator, error)
+	//
+	GetHistoryTxIDByBlockNumTxNum(blockNum, transNum uint64) (string, error)
 }
 
 // TxSimulator simulates a transaction on a consistent snapshot of the 'as recent state as possible'

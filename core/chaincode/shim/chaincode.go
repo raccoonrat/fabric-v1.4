@@ -711,6 +711,10 @@ func (stub *ChaincodeStub) GetStateByRange(startKey, endKey string) (StateQueryI
 	return iterator, err
 }
 
+func (stub *ChaincodeStub) GetHistoryTxIDByBlockNumTxNum(blockNum, txNum uint64) (string, error) {
+	return stub.handler.handleGetHistoryTxIDByBlockNumTxNum(stub.ChannelId, blockNum, txNum, stub.TxID)
+}
+
 // GetHistoryForKey documentation can be found in interfaces.go
 func (stub *ChaincodeStub) GetHistoryForKey(key string) (HistoryQueryIteratorInterface, error) {
 	response, err := stub.handler.handleGetHistoryForKey(key, stub.ChannelId, stub.TxID)

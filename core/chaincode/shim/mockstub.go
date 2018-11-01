@@ -292,6 +292,10 @@ func (stub *MockStub) GetQueryResult(query string) (StateQueryIteratorInterface,
 
 // GetHistoryForKey function can be invoked by a chaincode to return a history of
 // key values across time. GetHistoryForKey is intended to be used for read-only queries.
+
+func (stub *MockStub) GetHistoryTxIDByBlockNumTxNum(blockNum, txNum uint64) (string, error) {
+	return "", errors.New("not implemented")
+}
 func (stub *MockStub) GetHistoryForKey(key string) (HistoryQueryIteratorInterface, error) {
 	return nil, errors.New("not implemented")
 }

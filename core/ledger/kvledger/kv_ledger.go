@@ -27,6 +27,7 @@ import (
 	"github.com/hyperledger/fabric/core/ledger/pvtdatapolicy"
 	"github.com/hyperledger/fabric/protos/common"
 	"github.com/hyperledger/fabric/protos/peer"
+	putils "github.com/hyperledger/fabric/protos/utils"
 	"github.com/pkg/errors"
 )
 
@@ -172,6 +173,23 @@ func (l *kvLedger) GetTransactionByID(txID string) (*peer.ProcessedTransaction, 
 	l.blockAPIsRWLock.RLock()
 	l.blockAPIsRWLock.RUnlock()
 	return processedTran, nil
+}
+
+func (l *kvLedger) GetTxIDByBlockNumTxNum(
+	blockNum, tranNum uint64) (string, error) {
+	tranEnv, err := l.blockStore.RetrieveTxByBlockNumTranNum(blockNum, tranNum)
+	if err != nil {
+		return "", err
+	}
+	payload, err := putils.GetPayload(tranEnv)
+	if err != nil {
+		return "", err
+	}
+	chdr, err := putils.UnmarshalChannelHeader(payload.Header.ChannelHeader)
+	if err != nil {
+		return "", err
+	}
+	return chdr.TxId, nil
 }
 
 // GetBlockchainInfo returns basic info about blockchain

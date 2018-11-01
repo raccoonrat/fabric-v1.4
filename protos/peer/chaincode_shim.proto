@@ -39,6 +39,7 @@ message ChaincodeMessage {
         GET_STATE_METADATA = 20;
         PUT_STATE_METADATA = 21;
         GET_STATE_VERSION = 22;
+        GET_HISTORY_TXID_BY_BLOCKNUMTXNUM = 23;
     }
 
     Type type = 1;
@@ -130,6 +131,12 @@ message GetQueryResult {
 message QueryMetadata {
 	int32 pageSize = 1;
 	string bookmark = 2;
+}
+
+// GetHistoryTxIDByBlockNumTxNum is the payload of a ChaincodeMessage
+message GetHistoryTxIDByBlockNumTxNum {
+    uint64 BlockNum = 1;
+    uint64 TxNum = 2;
 }
 
 // GetHistoryForKey is the payload of a ChaincodeMessage. It contains a key
