@@ -173,7 +173,7 @@ func (c *coordinator) StoreBlock(block *common.Block, privateDataSets util.PvtDa
 	}
 
 	retryThresh := viper.GetDuration("peer.gossip.pvtData.pullRetryThreshold") //获取丢失的私有数据
-	var bFetchFromPeers bool // defaults to false
+	var bFetchFromPeers bool                                                   // defaults to false
 	if len(privateInfo.missingKeys) == 0 {
 		logger.Debugf("[%s] No missing collection private write sets to fetch from remote peers", c.ChainID)
 	} else {

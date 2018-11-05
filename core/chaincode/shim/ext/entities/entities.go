@@ -10,13 +10,12 @@ import (
 	"encoding/pem"
 	"reflect"
 
-	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/bccsp"
+	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/pkg/errors"
 )
 
 var Logger = flogging.MustGetLogger("entities")
-
 
 /**********************/
 /* Struct definitions */

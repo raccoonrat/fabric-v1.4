@@ -20,8 +20,8 @@ import (
 	//"fmt"
 	//"encoding/base64"
 
-	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/golang/protobuf/proto"
+	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/version"
 	"github.com/hyperledger/fabric/core/ledger/util"
 	"github.com/hyperledger/fabric/protos/ledger/rwset"

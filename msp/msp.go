@@ -9,8 +9,8 @@ package msp
 import (
 	"time"
 
-	"github.com/hyperledger/fabric/protos/msp"
 	"github.com/hyperledger/fabric/bccsp"
+	"github.com/hyperledger/fabric/protos/msp"
 )
 
 // IdentityDeserializer is implemented by both MSPManger and MSP

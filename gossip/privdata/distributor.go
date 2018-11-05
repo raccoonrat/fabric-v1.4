@@ -243,7 +243,7 @@ func (d *distributorImpl) createPrivateDataMessage(txID, namespace string,
 					Namespace:         namespace,
 					CollectionName:    collection.CollectionName,
 					TxId:              txID,
-					PrivateRwset:      collection.Rwset,  //collection.Rwset中就是向non-endorser peer传递的PrivateRwset
+					PrivateRwset:      collection.Rwset, //collection.Rwset中就是向non-endorser peer传递的PrivateRwset
 					PrivateSimHeight:  blkHt,
 					CollectionConfigs: ccp,
 				},
