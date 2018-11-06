@@ -6,6 +6,7 @@ import (
 
 	commonledger "github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/core/ledger"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/version"
 )
 
 type TxSimulator struct {
@@ -376,6 +377,10 @@ func (fake *TxSimulator) GetState(namespace string, key string) ([]byte, error) 
 		return ret.result1, ret.result2
 	}
 	return fake.getStateReturns.result1, fake.getStateReturns.result2
+}
+
+func (fake *TxSimulator) GetStateVersion(namespace, key string) (*version.Height, error) {
+	return nil, nil
 }
 
 func (fake *TxSimulator) GetStateCallCount() int {
@@ -750,6 +755,10 @@ func (fake *TxSimulator) GetPrivateData(namespace string, collection string, key
 		return ret.result1, ret.result2
 	}
 	return fake.getPrivateDataReturns.result1, fake.getPrivateDataReturns.result2
+}
+
+func (fake *TxSimulator) GetPrivateDataVersion(namespace, collection, key string) (*version.Height, error) {
+	return nil, nil
 }
 
 func (fake *TxSimulator) GetPrivateDataCallCount() int {

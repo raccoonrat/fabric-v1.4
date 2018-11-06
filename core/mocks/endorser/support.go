@@ -125,3 +125,7 @@ func (s *MockSupport) CheckInstantiationPolicy(name, version string, cd ccprovid
 func (s *MockSupport) GetApplicationConfig(cid string) (channelconfig.Application, bool) {
 	return s.GetApplicationConfigRv, s.GetApplicationConfigBoolRv
 }
+
+func (s *MockSupport) GetHistoryTxIDByBlockNumTxNum(blockNum, txNum uint64) (string, error) {
+	return "", nil
+}

@@ -21,6 +21,7 @@ import (
 
 	commonledger "github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/core/ledger"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/version"
 )
 
 type MockQueryExecutor struct {
@@ -71,6 +72,10 @@ func (m *MockQueryExecutor) GetPrivateData(namespace, collection, key string) ([
 	return nil, nil
 }
 
+func (m *MockQueryExecutor) GetPrivateDataVersion(ns, coll, key string) (*version.Height, error) {
+	return nil, nil
+}
+
 func (m *MockQueryExecutor) GetPrivateDataMetadataByHash(namespace, collection string, keyhash []byte) (map[string][]byte, error) {
 	return nil, nil
 }
@@ -95,5 +100,9 @@ func (m *MockQueryExecutor) GetStateMetadata(namespace, key string) (map[string]
 }
 
 func (m *MockQueryExecutor) GetPrivateDataMetadata(namespace, collection, key string) (map[string][]byte, error) {
+	return nil, nil
+}
+
+func (m *MockQueryExecutor) GetStateVersion(ns string, key string) (*version.Height, error) {
 	return nil, nil
 }
