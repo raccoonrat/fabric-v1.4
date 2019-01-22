@@ -165,20 +165,20 @@ func (c *coordinator) StoreBlock(block *common.Block, privateDataSets util.PvtDa
 		MissingPvtData: make(ledger.TxMissingPvtDataMap),
 	}
 
-	ownedRWsets, err := computeOwnedRWsets(block, privateDataSets)
+	ownedRWsets, err := computeOwnedRWsets(block, privateDataSets) //computeOwnedRWsets标识我们已经拥有的块私有数据
 	if err != nil {
 		logger.Warning("Failed computing owned RWSets", err)
 		return err
 	}
 
-	privateInfo, err := c.listMissingPrivateData(block, ownedRWsets)
+	privateInfo, err := c.listMissingPrivateData(block, ownedRWsets) //listMissingPrivateData标识缺少的私有写入集，并尝试从本地临时存储中检索它们
 	if err != nil {
 		logger.Warning(err)
 		return err
 	}
 
-	retryThresh := viper.GetDuration("peer.gossip.pvtData.pullRetryThreshold")
-	var bFetchFromPeers bool // defaults to false
+	retryThresh := viper.GetDuration("peer.gossip.pvtData.pullRetryThreshold") //获取丢失的私有数据
+	var bFetchFromPeers bool                                                   // defaults to false
 	if len(privateInfo.missingKeys) == 0 {
 		logger.Debugf("[%s] No missing collection private write sets to fetch from remote peers", c.ChainID)
 	} else {
@@ -210,7 +210,7 @@ func (c *coordinator) StoreBlock(block *common.Block, privateDataSets util.PvtDa
 	}
 
 	// populate the private RWSets passed to the ledger
-	for seqInBlock, nsRWS := range ownedRWsets.bySeqsInBlock() {
+	for seqInBlock, nsRWS := range ownedRWsets.bySeqsInBlock() { //把私有数据放到blockAndPvtData结构中
 		rwsets := nsRWS.toRWSet()
 		logger.Debugf("[%s] Added %d namespace private write sets for block [%d], tran [%d]", c.ChainID, len(rwsets.NsPvtRwset), block.Header.Number, seqInBlock)
 		blockAndPvtData.PvtData[seqInBlock] = &ledger.TxPvtData{
@@ -230,7 +230,7 @@ func (c *coordinator) StoreBlock(block *common.Block, privateDataSets util.PvtDa
 	}
 
 	// commit block and private data
-	err = c.CommitWithPvtData(blockAndPvtData)
+	err = c.CommitWithPvtData(blockAndPvtData) //提交block和私有数据
 	if err != nil {
 		return errors.Wrap(err, "commit failed")
 	}

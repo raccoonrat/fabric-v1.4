@@ -13,6 +13,7 @@ import (
 	"github.com/hyperledger/fabric-lib-go/healthz"
 	commonledger "github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/common/metrics"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/version"
 	"github.com/hyperledger/fabric/protos/common"
 	"github.com/hyperledger/fabric/protos/ledger/rwset"
 	"github.com/hyperledger/fabric/protos/ledger/rwset/kvrwset"
@@ -55,6 +56,8 @@ type PeerLedger interface {
 	GetBlockByHash(blockHash []byte) (*common.Block, error)
 	// GetBlockByTxID returns a block which contains a transaction
 	GetBlockByTxID(txID string) (*common.Block, error)
+	//GetTxByBlockNumTranNum returns a tansaction by block num and tx num
+	GetTxIDByBlockNumTxNum(blockNum, transNum uint64) (string, error)
 	// GetTxValidationCodeByTxID returns reason code of transaction validation
 	GetTxValidationCodeByTxID(txID string) (peer.TxValidationCode, error)
 	// NewTxSimulator gives handle to a transaction simulator.
@@ -125,6 +128,8 @@ type QueryExecutor interface {
 	SimpleQueryExecutor
 	// GetStateMetadata returns the metadata for given namespace and key
 	GetStateMetadata(namespace, key string) (map[string][]byte, error)
+	// GetStateHeight returns the height for given namespace and key
+	GetStateVersion(namespace, key string) (*version.Height, error)
 	// GetStateMultipleKeys gets the values for multiple keys in a single call
 	GetStateMultipleKeys(namespace string, keys []string) ([][]byte, error)
 	// GetStateRangeScanIteratorWithMetadata returns an iterator that contains all the key-values between given key ranges.
@@ -149,6 +154,8 @@ type QueryExecutor interface {
 	GetPrivateData(namespace, collection, key string) ([]byte, error)
 	// GetPrivateDataMetadata gets the metadata of a private data item identified by a tuple <namespace, collection, key>
 	GetPrivateDataMetadata(namespace, collection, key string) (map[string][]byte, error)
+	// GetPrivateDataHeight gets the height of a private data item identified by a tuple <namespace, collection, key>
+	GetPrivateDataVersion(namespace, collection, key string) (*version.Height, error)
 	// GetPrivateDataMetadataByHash gets the metadata of a private data item identified by a tuple <namespace, collection, keyhash>
 	GetPrivateDataMetadataByHash(namespace, collection string, keyhash []byte) (map[string][]byte, error)
 	// GetPrivateDataMultipleKeys gets the values for the multiple private data items in a single call
@@ -173,6 +180,8 @@ type HistoryQueryExecutor interface {
 	// GetHistoryForKey retrieves the history of values for a key.
 	// The returned ResultsIterator contains results of type *KeyModification which is defined in protos/ledger/queryresult.
 	GetHistoryForKey(namespace string, key string) (commonledger.ResultsIterator, error)
+	//
+	GetHistoryTxIDByBlockNumTxNum(blockNum, transNum uint64) (string, error)
 }
 
 // TxSimulator simulates a transaction on a consistent snapshot of the 'as recent state as possible'

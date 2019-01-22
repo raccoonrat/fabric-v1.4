@@ -19,6 +19,7 @@ package msp
 import (
 	"time"
 
+	"github.com/hyperledger/fabric/bccsp"
 	m "github.com/hyperledger/fabric/msp"
 	"github.com/hyperledger/fabric/protos/msp"
 )
@@ -60,6 +61,10 @@ func (msp *noopmsp) GetDefaultSigningIdentity() (m.SigningIdentity, error) {
 // GetRootCerts returns the root certificates for this MSP
 func (msp *noopmsp) GetRootCerts() []m.Identity {
 	return nil
+}
+
+func (msp *noopmsp) GetBccsp(identifier string) (bccsp.BCCSP, error) {
+	panic("implement me")
 }
 
 // GetIntermediateCerts returns the intermediate root certificates for this MSP

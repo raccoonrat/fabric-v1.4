@@ -75,7 +75,7 @@ func (sc *SimpleCollection) Setup(collectionConfig *common.StaticCollectionConfi
 	sc.name = collectionConfig.GetName()
 
 	// get the access signature policy envelope
-	collectionPolicyConfig := collectionConfig.GetMemberOrgsPolicy()
+	collectionPolicyConfig := collectionConfig.GetMemberOrgsPolicy() //重点 决定对谁可见的policy
 	if collectionPolicyConfig == nil {
 		return errors.New("Collection config policy is nil")
 	}

@@ -16,6 +16,8 @@ import (
 	"github.com/hyperledger/fabric/bccsp"
 	idemixbccsp "github.com/hyperledger/fabric/bccsp/idemix"
 	"github.com/hyperledger/fabric/bccsp/sw"
+	"github.com/hyperledger/fabric-amcl/amcl"
+	"github.com/hyperledger/fabric-amcl/amcl/FP256BN"
 	m "github.com/hyperledger/fabric/protos/msp"
 	"github.com/pkg/errors"
 	"go.uber.org/zap/zapcore"
@@ -673,4 +675,13 @@ func (id *idemixSigningIdentity) Sign(msg []byte) ([]byte, error) {
 
 func (id *idemixSigningIdentity) GetPublicVersion() Identity {
 	return id.idemixidentity
+}
+
+// ADD BY WYH
+// GetSigningIdentity returns a specific signing
+// identity identified by the supplied identifier
+func (msp *idemixmsp) GetBccsp(identifier string) (bccsp.BCCSP, error) {
+	// TODO
+	return nil, nil
+
 }

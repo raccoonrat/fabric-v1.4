@@ -17,12 +17,18 @@ limitations under the License.
 package rwsetutil
 
 import (
+	//"fmt"
+	//"encoding/base64"
+
 	"github.com/golang/protobuf/proto"
+	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/version"
 	"github.com/hyperledger/fabric/core/ledger/util"
 	"github.com/hyperledger/fabric/protos/ledger/rwset"
 	"github.com/hyperledger/fabric/protos/ledger/rwset/kvrwset"
 )
+
+var rwsetLogger = flogging.MustGetLogger("rwset")
 
 /////////////////////////////////////////////////////////////////
 // Messages related to PUBLIC read-write set
@@ -347,6 +353,16 @@ func newPvtKVReadHash(key string, version *version.Height) *kvrwset.KVReadHash {
 }
 
 func newPvtKVWriteAndHash(key string, value []byte) (*kvrwset.KVWrite, *kvrwset.KVWriteHash) {
+
+	/*//value = util.ComputeHash(value)
+	midvalue := base64.StdEncoding.EncodeToString(value)
+	fmt.Println("--------------base64.StdEncoding.EncodeToString(value)---------------",midvalue)
+	//fmt.Println("--------------String(value)---------------",string(value))
+	v,_ := base64.StdEncoding.DecodeString(string(midvalue))
+	fmt.Println("--------------base64.StdEncoding.DecodeString(string(value)---------------",v)
+	value = []byte(midvalue)
+	*/
+
 	kvWrite := newKVWrite(key, value)
 	var keyHash, valueHash []byte
 	keyHash = util.ComputeStringHash(key)

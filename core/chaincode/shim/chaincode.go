@@ -458,6 +458,12 @@ func (stub *ChaincodeStub) GetState(key string) ([]byte, error) {
 	return stub.handler.handleGetState(collection, key, stub.ChannelId, stub.TxID)
 }
 
+// GetVersionedState documentation can be found in interfaces.go
+func (stub *ChaincodeStub) GetStateVersion(key string) (*pb.StateVersion, error) {
+	collection := ""
+	return stub.handler.handleGetStateVersion(collection, key, stub.ChannelId, stub.TxID)
+}
+
 // SetStateValidationParameter documentation can be found in interfaces.go
 func (stub *ChaincodeStub) SetStateValidationParameter(key string, ep []byte) error {
 	return stub.handler.handlePutStateMetadataEntry("", key, stub.validationParameterMetakey, ep, stub.ChannelId, stub.TxID)
@@ -519,6 +525,13 @@ func (stub *ChaincodeStub) GetPrivateData(collection string, key string) ([]byte
 		return nil, fmt.Errorf("collection must not be an empty string")
 	}
 	return stub.handler.handleGetState(collection, key, stub.ChannelId, stub.TxID)
+}
+
+func (stub *ChaincodeStub) GetPrivateDataVersion(collection string, key string) (*pb.StateVersion, error) {
+	if collection == "" {
+		return nil, fmt.Errorf("collection must not be an empty string")
+	}
+	return stub.handler.handleGetStateVersion(collection, key, stub.ChannelId, stub.TxID)
 }
 
 // PutPrivateData documentation can be found in interfaces.go
@@ -696,6 +709,10 @@ func (stub *ChaincodeStub) GetStateByRange(startKey, endKey string) (StateQueryI
 	iterator, _, err := stub.handleGetStateByRange(collection, startKey, endKey, nil)
 
 	return iterator, err
+}
+
+func (stub *ChaincodeStub) GetHistoryTxIDByBlockNumTxNum(blockNum, txNum uint64) (string, error) {
+	return stub.handler.handleGetHistoryTxIDByBlockNumTxNum(stub.ChannelId, blockNum, txNum, stub.TxID)
 }
 
 // GetHistoryForKey documentation can be found in interfaces.go

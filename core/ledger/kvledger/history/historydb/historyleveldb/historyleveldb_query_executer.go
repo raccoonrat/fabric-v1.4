@@ -28,6 +28,24 @@ type LevelHistoryDBQueryExecutor struct {
 	blockStore blkstorage.BlockStore
 }
 
+//GetHistoryTxIDByBlockNumTranNum implement method in interface `ledger.HistoryQueryExecutor`
+func (q *LevelHistoryDBQueryExecutor) GetHistoryTxIDByBlockNumTxNum(
+	blockNum, tranNum uint64) (string, error) {
+	tranEnv, err := q.blockStore.RetrieveTxByBlockNumTranNum(blockNum, tranNum)
+	if err != nil {
+		return "", err
+	}
+	payload, err := putils.GetPayload(tranEnv)
+	if err != nil {
+		return "", err
+	}
+	chdr, err := putils.UnmarshalChannelHeader(payload.Header.ChannelHeader)
+	if err != nil {
+		return "", err
+	}
+	return chdr.TxId, nil
+}
+
 // GetHistoryForKey implements method in interface `ledger.HistoryQueryExecutor`
 func (q *LevelHistoryDBQueryExecutor) GetHistoryForKey(namespace string, key string) (commonledger.ResultsIterator, error) {
 

@@ -1492,3 +1492,7 @@ func (fake *PeerLedger) recordInvocation(key string, args []interface{}) {
 	}
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
+
+func (fake *PeerLedger) GetTxIDByBlockNumTxNum(blockNum, transNum uint64) (string, error) {
+	return "", nil
+}

@@ -256,7 +256,7 @@ func (e *Endorser) SimulateProposal(txParams *ccprovider.TransactionParams, cid 
 			return nil, nil, nil, nil, err
 		}
 
-		if simResult.PvtSimulationResults != nil {
+		if simResult.PvtSimulationResults != nil { //检查模拟执行的结果simResult中是否含有私有数据的执行结果
 			if cid.Name == "lscc" {
 				// TODO: remove once we can store collection configuration outside of LSCC
 				txParams.TXSimulator.Done()
@@ -463,7 +463,7 @@ func (e *Endorser) ProcessProposal(ctx context.Context, signedProp *pb.SignedPro
 	var txsim ledger.TxSimulator
 	var historyQueryExecutor ledger.HistoryQueryExecutor
 	if acquireTxSimulator(chainID, vr.hdrExt.ChaincodeId) {
-		if txsim, err = e.s.GetTxSimulator(chainID, txid); err != nil {
+		if txsim, err = e.s.GetTxSimulator(chainID, txid); err != nil { //GetTxSimulator返回指定分类帐的事务模拟器，客户端可以获得多个这样的模拟器; 它们与提供的txid唯一绑定
 			return &pb.ProposalResponse{Response: &pb.Response{Status: 500, Message: err.Error()}}, nil
 		}
 

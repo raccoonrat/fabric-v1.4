@@ -11,8 +11,11 @@ import (
 	"reflect"
 
 	"github.com/hyperledger/fabric/bccsp"
+	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/pkg/errors"
 )
+
+var Logger = flogging.MustGetLogger("entities")
 
 /**********************/
 /* Struct definitions */
@@ -86,7 +89,6 @@ func NewEncrypterEntity(ID string, bccsp bccsp.BCCSP, eKey bccsp.Key, eOpts bccs
 	if eKey == nil {
 		return nil, errors.New("NewEntity error: nil keys")
 	}
-
 	return &BCCSPEncrypterEntity{
 		BCCSPEntity: BCCSPEntity{
 			IDstr: ID,
@@ -256,8 +258,8 @@ func (this *BCCSPEncrypterEntity) Equals(e Entity) bool {
 
 func (pe *BCCSPEncrypterEntity) Public() (Entity, error) {
 	var err error
-	eKeyPub := pe.EKey
 
+	eKeyPub := pe.EKey
 	if !pe.EKey.Symmetric() {
 		if eKeyPub, err = pe.EKey.PublicKey(); err != nil {
 			return nil, errors.WithMessage(err, "public error, eKey.PublicKey returned")

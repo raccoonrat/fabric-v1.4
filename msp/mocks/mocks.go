@@ -9,6 +9,7 @@ package mocks
 import (
 	"time"
 
+	"github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric/msp"
 	pmsp "github.com/hyperledger/fabric/protos/msp"
 	"github.com/stretchr/testify/mock"
@@ -75,6 +76,11 @@ func (m *MockMSP) Validate(id msp.Identity) error {
 func (m *MockMSP) SatisfiesPrincipal(id msp.Identity, principal *pmsp.MSPPrincipal) error {
 	args := m.Called(id, principal)
 	return args.Error(0)
+}
+
+func (m *MockMSP) GetBccsp(identifier string) (bccsp.BCCSP, error) {
+	args := m.Called()
+	return nil, args.Error(0)
 }
 
 type MockIdentity struct {

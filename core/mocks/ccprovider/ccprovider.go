@@ -10,6 +10,7 @@ import (
 	commonledger "github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/core/common/ccprovider"
 	"github.com/hyperledger/fabric/core/ledger"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/version"
 	"github.com/hyperledger/fabric/protos/peer"
 )
 
@@ -42,6 +43,10 @@ func (m *MockTxSim) GetState(namespace string, key string) ([]byte, error) {
 	return nil, nil
 }
 
+func (m *MockTxSim) GetPrivateDataVersion(namespace, collection, key string) (*version.Height, error) {
+	return nil, nil
+}
+
 func (m *MockTxSim) GetStateMultipleKeys(namespace string, keys []string) ([][]byte, error) {
 	return nil, nil
 }
@@ -63,6 +68,10 @@ func (m *MockTxSim) ExecuteQueryWithMetadata(namespace, query string, metadata m
 }
 
 func (m *MockTxSim) Done() {
+}
+
+func (m *MockTxSim) GetStateVersion(string, string) (*version.Height, error) {
+	return nil, nil
 }
 
 func (m *MockTxSim) SetState(namespace string, key string, value []byte) error {

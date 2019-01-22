@@ -719,3 +719,16 @@ func (msp *bccspmsp) IsWellFormed(identity *m.SerializedIdentity) error {
 	_, err := x509.ParseCertificate(bl.Bytes)
 	return err
 }
+
+// ADD BY WYH
+// GetSigningIdentity returns a specific signing
+// identity identified by the supplied identifier
+func (msp *bccspmsp) GetBccsp(identifier string) (bccsp.BCCSP, error) {
+	// TODO
+	if msp.bccsp != nil {
+		return msp.bccsp, nil
+	}
+
+	return nil, fmt.Errorf("No bccsp identity for %s", identifier)
+
+}

@@ -32,7 +32,7 @@ var lock = sync.Mutex{}
 var testMode bool
 
 // defaultTestSpec is the default logging level for gossip tests
-var defaultTestSpec = "WARNING"
+var defaultTestSpec = "DEBUG"
 
 type Logger interface {
 	Debug(args ...interface{})

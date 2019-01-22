@@ -26,6 +26,7 @@ import (
 	"github.com/hyperledger/fabric/core/ledger/pvtdatapolicy"
 	"github.com/hyperledger/fabric/protos/common"
 	"github.com/hyperledger/fabric/protos/peer"
+	putils "github.com/hyperledger/fabric/protos/utils"
 	"github.com/pkg/errors"
 )
 
@@ -215,6 +216,23 @@ func (l *kvLedger) GetTransactionByID(txID string) (*peer.ProcessedTransaction, 
 	return processedTran, nil
 }
 
+func (l *kvLedger) GetTxIDByBlockNumTxNum(
+	blockNum, tranNum uint64) (string, error) {
+	tranEnv, err := l.blockStore.RetrieveTxByBlockNumTranNum(blockNum, tranNum)
+	if err != nil {
+		return "", err
+	}
+	payload, err := putils.GetPayload(tranEnv)
+	if err != nil {
+		return "", err
+	}
+	chdr, err := putils.UnmarshalChannelHeader(payload.Header.ChannelHeader)
+	if err != nil {
+		return "", err
+	}
+	return chdr.TxId, nil
+}
+
 // GetBlockchainInfo returns basic info about blockchain
 func (l *kvLedger) GetBlockchainInfo() (*common.BlockchainInfo, error) {
 	bcInfo, err := l.blockStore.GetBlockchainInfo()
@@ -309,7 +327,7 @@ func (l *kvLedger) CommitWithPvtData(pvtdataAndBlock *ledger.BlockAndPvtData) er
 	logger.Debugf("[%s] Committing block [%d] to storage", l.ledgerID, blockNo)
 	l.blockAPIsRWLock.Lock()
 	defer l.blockAPIsRWLock.Unlock()
-	if err = l.blockStore.CommitWithPvtData(pvtdataAndBlock); err != nil {
+	if err = l.blockStore.CommitWithPvtData(pvtdataAndBlock); err != nil { //向blockstore中提交数据
 		return err
 	}
 	elapsedCommitBlockStorage := time.Since(startCommitBlockStorage)

@@ -38,6 +38,8 @@ message ChaincodeMessage {
         GET_HISTORY_FOR_KEY = 19;
         GET_STATE_METADATA = 20;
         PUT_STATE_METADATA = 21;
+        GET_STATE_VERSION = 22;
+        GET_HISTORY_TXID_BY_BLOCKNUMTXNUM = 23;
     }
 
     Type type = 1;
@@ -68,6 +70,11 @@ message GetState {
 }
 
 message GetStateMetadata {
+    string key = 1;
+    string collection = 2;
+}
+
+message GetStateVersion {
     string key = 1;
     string collection = 2;
 }
@@ -126,6 +133,12 @@ message QueryMetadata {
 	string bookmark = 2;
 }
 
+// GetHistoryTxIDByBlockNumTxNum is the payload of a ChaincodeMessage
+message GetHistoryTxIDByBlockNumTxNum {
+    uint64 BlockNum = 1;
+    uint64 TxNum = 2;
+}
+
 // GetHistoryForKey is the payload of a ChaincodeMessage. It contains a key
 // for which the historical values need to be retrieved.
 message GetHistoryForKey {
@@ -171,6 +184,11 @@ message StateMetadata {
 
 message StateMetadataResult {
     repeated StateMetadata entries = 1;
+}
+
+message StateVersion {
+    uint64 block_num = 1;
+    uint64 tx_num = 2;
 }
 
 // Interface that provides support to chaincode execution. ChaincodeContext

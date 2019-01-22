@@ -329,6 +329,59 @@ func (handler *Handler) handleGetState(collection string, key string, channelId 
 	return nil, errors.Errorf("[%s] incorrect chaincode message %s received. Expecting %s or %s", shorttxid(responseMsg.Txid), responseMsg.Type, pb.ChaincodeMessage_RESPONSE, pb.ChaincodeMessage_ERROR)
 }
 
+func (handler *Handler) handleGetStateVersion(collection string, key string, channelId string, txid string) (*pb.StateVersion, error) {
+	payloadBytes, _ := proto.Marshal(&pb.GetStateVersion{
+		Collection: collection,
+		Key:        key,
+	})
+
+	msg := &pb.ChaincodeMessage{
+		Type:      pb.ChaincodeMessage_GET_STATE_VERSION,
+		Payload:   payloadBytes,
+		Txid:      txid,
+		ChannelId: channelId,
+	}
+
+	chaincodeLogger.Debugf("[%s] Sending %s", shorttxid(msg.Txid), pb.ChaincodeMessage_GET_STATE_VERSION)
+
+	responseMsg, err := handler.callPeerWithChaincodeMsg(msg, channelId, txid)
+	if err != nil {
+		return nil, errors.WithMessage(err, fmt.Sprintf("[%s] error sending GET_STATE_VERSION", shorttxid(txid)))
+	}
+
+	if responseMsg.Type.String() == pb.ChaincodeMessage_RESPONSE.String() {
+		chaincodeLogger.Debugf("[%s] GetStateVersion received payload %s",
+			shorttxid(responseMsg.Txid), pb.ChaincodeMessage_RESPONSE)
+
+		if responseMsg.Payload == nil {
+			chaincodeLogger.Infof(
+				"[%s] no version attached with the key %s",
+				txid,
+				key,
+			)
+			return nil, nil
+		}
+
+		version := &pb.StateVersion{}
+		err := proto.Unmarshal(responseMsg.Payload, version)
+		if err != nil {
+			chaincodeLogger.Errorf("[%s]GetStateVersion could not unmarshal result", shorttxid(responseMsg.Txid))
+			return nil, errors.New("Could not unmarshal version response")
+		}
+		return version, nil
+	}
+
+	if responseMsg.Type.String() == pb.ChaincodeMessage_ERROR.String() {
+		chaincodeLogger.Errorf("[%s] GetStateVersion received error %s",
+			shorttxid(responseMsg.Txid), pb.ChaincodeMessage_ERROR)
+		return nil, errors.New(string(responseMsg.Payload[:]))
+	}
+
+	chaincodeLogger.Errorf("[%s] Incorrect chaincode message %s received. Expecting %s or %s", shorttxid(responseMsg.Txid), responseMsg.Type, pb.ChaincodeMessage_RESPONSE, pb.ChaincodeMessage_ERROR)
+
+	return nil, errors.Errorf("[%s] incorrect chaincode message %s received. Expecting %s or %s", shorttxid(responseMsg.Txid), responseMsg.Type, pb.ChaincodeMessage_RESPONSE, pb.ChaincodeMessage_ERROR)
+}
+
 func (handler *Handler) handleGetStateMetadata(collection string, key string, channelID string, txID string) (map[string][]byte, error) {
 	// Construct payload for GET_STATE_METADATA
 	payloadBytes, _ := proto.Marshal(&pb.GetStateMetadata{Collection: collection, Key: key})
@@ -630,6 +683,47 @@ func (handler *Handler) handleGetQueryResult(collection string, query string, me
 	// Incorrect chaincode message received
 	chaincodeLogger.Errorf("Incorrect chaincode message %s received. Expecting %s or %s", responseMsg.Type, pb.ChaincodeMessage_RESPONSE, pb.ChaincodeMessage_ERROR)
 	return nil, errors.Errorf("incorrect chaincode message %s received. Expecting %s or %s", responseMsg.Type, pb.ChaincodeMessage_RESPONSE, pb.ChaincodeMessage_ERROR)
+}
+
+func (handler *Handler) handleGetHistoryTxIDByBlockNumTxNum(
+	channelId string,
+	blockNum, txNum uint64,
+	txid string) (string, error) {
+
+	payloadBytes, _ := proto.Marshal(&pb.GetHistoryTxIDByBlockNumTxNum{
+		BlockNum: blockNum,
+		TxNum:    txNum,
+	})
+
+	msg := &pb.ChaincodeMessage{
+		Type:      pb.ChaincodeMessage_GET_HISTORY_TXID_BY_BLOCKNUMTXNUM,
+		Payload:   payloadBytes,
+		Txid:      txid,
+		ChannelId: channelId,
+	}
+	chaincodeLogger.Debugf("[%s] sending %s", shorttxid(msg.Txid),
+		pb.ChaincodeMessage_GET_HISTORY_TXID_BY_BLOCKNUMTXNUM)
+	resp, err := handler.callPeerWithChaincodeMsg(msg, channelId, txid)
+	if err != nil {
+		return "", errors.WithMessage(
+			err, fmt.Sprintf(
+				"[%s] GET_HISTORY_TXID error sending", shorttxid(txid)))
+	}
+	if resp.Type.String() ==
+		pb.ChaincodeMessage_RESPONSE.String() {
+		// Success response
+		chaincodeLogger.Debugf(
+			"[%s] GET_HISTORY_TXID received payload %s",
+			shorttxid(resp.Txid), pb.ChaincodeMessage_RESPONSE)
+		return string(resp.Payload[:]), nil
+	}
+	if resp.Type.String() == pb.ChaincodeMessage_ERROR.String() {
+		// Error response
+		chaincodeLogger.Errorf("[%s] GetHistoryTXID received error %s", shorttxid(resp.Txid), pb.ChaincodeMessage_ERROR)
+		return "", errors.New(string(resp.Payload[:]))
+	}
+	chaincodeLogger.Errorf("[%s] Incorrect chaincode message %s received. Expecting %s or %s", shorttxid(resp.Txid), resp.Type, pb.ChaincodeMessage_RESPONSE, pb.ChaincodeMessage_ERROR)
+	return "", errors.Errorf("[%s] incorrect chaincode message %s received. Expecting %s or %s", shorttxid(resp.Txid), resp.Type, pb.ChaincodeMessage_RESPONSE, pb.ChaincodeMessage_ERROR)
 }
 
 func (handler *Handler) handleGetHistoryForKey(key string, channelId string, txid string) (*pb.QueryResponse, error) {

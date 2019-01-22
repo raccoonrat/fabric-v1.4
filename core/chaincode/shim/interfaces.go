@@ -82,6 +82,10 @@ type ChaincodeStubInterface interface {
 	// If the key does not exist in the state database, (nil, nil) is returned.
 	GetState(key string) ([]byte, error)
 
+	//GetStateHeight returns height of state specified by the key from
+	//the ledger.
+	GetStateVersion(key string) (*pb.StateVersion, error)
+
 	// PutState puts the specified `key` and `value` into the transaction's
 	// writeset as a data-write proposal. PutState doesn't effect the ledger
 	// until the transaction is validated and successfully committed.
@@ -232,12 +236,19 @@ type ChaincodeStubInterface interface {
 	// update ledger, and should limit use to read-only chaincode operations.
 	GetHistoryForKey(key string) (HistoryQueryIteratorInterface, error)
 
+	// GetHistoryTxIDByBlockNumTranNum return a history tx identified by block num and
+	// num
+	GetHistoryTxIDByBlockNumTxNum(blockNum, txNum uint64) (string, error)
+
 	// GetPrivateData returns the value of the specified `key` from the specified
 	// `collection`. Note that GetPrivateData doesn't read data from the
 	// private writeset, which has not been committed to the `collection`. In
 	// other words, GetPrivateData doesn't consider data modified by PutPrivateData
 	// that has not been committed.
 	GetPrivateData(collection, key string) ([]byte, error)
+
+	// GetPrivateDataVersion returns the value version of the specified `key` from the specified `collection`, other stuff is the same as GetPrivateData
+	GetPrivateDataVersion(collection, key string) (*pb.StateVersion, error)
 
 	// PutPrivateData puts the specified `key` and `value` into the transaction's
 	// private writeset. Note that only hash of the private writeset goes into the

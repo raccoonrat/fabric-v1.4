@@ -8,6 +8,9 @@ package lockbasedtxmgr
 import (
 	"fmt"
 
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/storageutil"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/txmgr"
+
 	commonledger "github.com/hyperledger/fabric/common/ledger"
 	ledger "github.com/hyperledger/fabric/core/ledger"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/rwsetutil"
@@ -21,6 +24,8 @@ import (
 	"github.com/hyperledger/fabric/protos/ledger/rwset/kvrwset"
 	"github.com/pkg/errors"
 )
+
+//var logger = flogging.MustGetLogger("helper")
 
 type queryHelper struct {
 	txmgr             *LockBasedTxMgr
@@ -51,6 +56,21 @@ func (h *queryHelper) getState(ns string, key string) ([]byte, []byte, error) {
 		h.rwsetBuilder.AddToReadSet(ns, key, ver)
 	}
 	return val, metadata, nil
+}
+
+func (h *queryHelper) getStateVersion(ns string, key string) (*version.Height, error) {
+	if err := h.checkDone(); err != nil {
+		return nil, err
+	}
+
+	ver, err := h.txmgr.db.GetVersion(ns, key)
+	if err != nil {
+		return nil, err
+	}
+	if h.rwsetBuilder != nil {
+		h.rwsetBuilder.AddToReadSet(ns, key, ver)
+	}
+	return ver, nil
 }
 
 func (h *queryHelper) getStateMultipleKeys(namespace string, keys []string) ([][]byte, error) {
@@ -154,6 +174,41 @@ func (h *queryHelper) getPrivateData(ns, coll, key string) ([]byte, error) {
 	return val, nil
 }
 
+func (h *queryHelper) getPrivateDataVersion(ns, coll, key string) (*version.Height, error) {
+	if err := h.validateCollName(ns, coll); err != nil {
+		return nil, err
+	}
+	if err := h.checkDone(); err != nil {
+		return nil, err
+	}
+
+	var err error
+	var hashVersion *version.Height
+	var versionedValue *statedb.VersionedValue
+
+	if versionedValue, err = h.txmgr.db.GetPrivateData(ns, coll, key); err != nil {
+		return nil, err
+	}
+
+	// metadata is always nil for private data - because, the metadata is part of the hashed key (instead of raw key)
+	_, _, ver := decomposeVersionedValue(versionedValue)
+
+	keyHash := util.ComputeStringHash(key)
+	if hashVersion, err = h.txmgr.db.GetKeyHashVersion(ns, coll, keyHash); err != nil {
+		return nil, err
+	}
+
+	if !version.AreSame(hashVersion, ver) {
+		return nil, &txmgr.ErrPvtdataNotAvailable{Msg: fmt.Sprintf(
+			"private data matching public hash version is not available. Public hash version = %#v, Private data version = %#v",
+			hashVersion, ver)}
+	}
+
+	if h.rwsetBuilder != nil {
+		h.rwsetBuilder.AddToHashedReadSet(ns, coll, key, ver)
+	}
+	return ver, nil
+}
 func (h *queryHelper) getPrivateDataValueHash(ns, coll, key string) (valueHash, metadataBytes []byte, err error) {
 	if err := h.validateCollName(ns, coll); err != nil {
 		return nil, nil, err

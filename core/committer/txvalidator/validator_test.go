@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric/common/cauthdsl"
 	ctxt "github.com/hyperledger/fabric/common/configtx/test"
 	commonerrors "github.com/hyperledger/fabric/common/errors"
@@ -600,6 +601,10 @@ func (fake *mockMSP) Validate(id msp.Identity) error {
 
 func (fake *mockMSP) SatisfiesPrincipal(id msp.Identity, principal *mb.MSPPrincipal) error {
 	return fake.SatPrinError
+}
+
+func (fake *mockMSP) GetBccsp(identifier string) (bccsp.BCCSP, error) {
+	return nil, nil
 }
 
 // parallel validation on a block with a high number of transactions and sbe dependencies among those
@@ -1570,6 +1575,11 @@ func (m *mockLedger) NewHistoryQueryExecutor() (ledger.HistoryQueryExecutor, err
 func (m *mockLedger) GetPvtDataAndBlockByNum(blockNum uint64, filter ledger.PvtNsCollFilter) (*ledger.BlockAndPvtData, error) {
 	args := m.Called()
 	return args.Get(0).(*ledger.BlockAndPvtData), nil
+}
+
+// GetTxIDByBlockNumTxNum retrieves transaction ID with block number and transaction number
+func (m *mockLedger) GetTxIDByBlockNumTxNum(blockNum, transNum uint64) (string, error) {
+	return "", nil
 }
 
 // GetPvtDataByNum retrieves the pvt data

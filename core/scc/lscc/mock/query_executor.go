@@ -6,6 +6,7 @@ import (
 
 	ledger "github.com/hyperledger/fabric/common/ledger"
 	ledgera "github.com/hyperledger/fabric/core/ledger"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/version"
 )
 
 type QueryExecutor struct {
@@ -1139,4 +1140,12 @@ func (fake *QueryExecutor) recordInvocation(key string, args []interface{}) {
 		fake.invocations[key] = [][]interface{}{}
 	}
 	fake.invocations[key] = append(fake.invocations[key], args)
+}
+
+func (fake *QueryExecutor) GetPrivateDataVersion(string, string, string) (*version.Height, error) {
+	return nil, nil
+}
+
+func (fake *QueryExecutor) GetStateVersion(namespace, key string) (*version.Height, error) {
+	return nil, nil
 }

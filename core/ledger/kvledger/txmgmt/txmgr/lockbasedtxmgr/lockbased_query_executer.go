@@ -8,6 +8,7 @@ package lockbasedtxmgr
 import (
 	commonledger "github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/core/ledger"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/version"
 )
 
 // LockBasedQueryExecutor is a query executor used in `LockBasedTxMgr`
@@ -26,6 +27,11 @@ func newQueryExecutor(txmgr *LockBasedTxMgr, txid string) *lockBasedQueryExecuto
 func (q *lockBasedQueryExecutor) GetState(ns string, key string) (val []byte, err error) {
 	val, _, err = q.helper.getState(ns, key)
 	return
+}
+
+// GetStateVersion implements method in interface `ledger.QueryExecutor`
+func (q *lockBasedQueryExecutor) GetStateVersion(ns string, key string) (*version.Height, error) {
+	return q.helper.getStateVersion(ns, key)
 }
 
 // GetStateMetadata implements method in interface `ledger.QueryExecutor`
@@ -68,6 +74,11 @@ func (q *lockBasedQueryExecutor) ExecuteQueryWithMetadata(namespace, query strin
 // GetPrivateData implements method in interface `ledger.QueryExecutor`
 func (q *lockBasedQueryExecutor) GetPrivateData(namespace, collection, key string) ([]byte, error) {
 	return q.helper.getPrivateData(namespace, collection, key)
+}
+
+// GetPrivateDataVersion implements method in interface `ledger.QueryExecutor`
+func (q *lockBasedQueryExecutor) GetPrivateDataVersion(ns, coll, key string) (*version.Height, error) {
+	return q.helper.getPrivateDataVersion(ns, coll, key)
 }
 
 // GetPrivateDataMetadata implements method in interface `ledger.QueryExecutor`

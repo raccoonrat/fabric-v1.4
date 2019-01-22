@@ -9,6 +9,7 @@ package msp
 import (
 	"time"
 
+	"github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric/protos/msp"
 )
 
@@ -94,6 +95,11 @@ type MSP interface {
 	// involve a byte-by-byte comparison (if the principal is
 	// a serialized identity) or may require MSP validation
 	SatisfiesPrincipal(id Identity, principal *msp.MSPPrincipal) error
+
+	// ADD BY WYH
+	// GetSigningIdentity returns a specific signing
+	// identity identified by the supplied identifier
+	GetBccsp(identifier string) (bccsp.BCCSP, error)
 }
 
 // OUIdentifier represents an organizational unit and

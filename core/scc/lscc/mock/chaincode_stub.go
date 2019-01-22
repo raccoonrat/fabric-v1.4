@@ -2796,3 +2796,17 @@ func (fake *ChaincodeStub) recordInvocation(key string, args []interface{}) {
 	}
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
+
+func (fake *ChaincodeStub) GetPrivateDataVersion(collection, key string) (*pb.StateVersion, error) {
+	return nil, nil
+}
+
+func (fake *ChaincodeStub) GetHistoryTxIDByBlockNumTxNum(blockNum, txNum uint64) (string, error) {
+	return "", nil
+}
+
+func (fake *ChaincodeStub) GetStateVersion(key string) (*pb.StateVersion, error) {
+	return nil, nil
+}
+
+var _ shim.ChaincodeStubInterface = new(ChaincodeStub)
