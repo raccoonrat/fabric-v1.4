@@ -2801,11 +2801,11 @@ func (fake *ChaincodeStub) GetHistoryTxIDByBlockNumTxNum(blockNum, txNum uint64)
 	return "", nil
 }
 
-func (fake *ChaincodeStub) GetPrivateDataVersion(collection, key string) (*pb.StateVersion, error) {
+func (fake *ChaincodeStub) GetPrivateDataVersion(collection, key string) (*peer.StateVersion, error) {
 	return nil, nil
 }
 
-func (fake *ChaincodeStub) GetStateVersion(key string) (*pb.StateVersion, error) {
+func (fake *ChaincodeStub) GetStateVersion(key string) (*peer.StateVersion, error) {
 	return nil, nil
 }
 

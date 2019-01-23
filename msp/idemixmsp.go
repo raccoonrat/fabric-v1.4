@@ -16,8 +16,6 @@ import (
 	"github.com/hyperledger/fabric/bccsp"
 	idemixbccsp "github.com/hyperledger/fabric/bccsp/idemix"
 	"github.com/hyperledger/fabric/bccsp/sw"
-	"github.com/hyperledger/fabric-amcl/amcl"
-	"github.com/hyperledger/fabric-amcl/amcl/FP256BN"
 	m "github.com/hyperledger/fabric/protos/msp"
 	"github.com/pkg/errors"
 	"go.uber.org/zap/zapcore"

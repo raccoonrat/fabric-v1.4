@@ -387,14 +387,10 @@ func (fake *TxSimulator) DeletePrivateDataCallCount() int {
 	fake.deletePrivateDataMutex.RLock()
 	defer fake.deletePrivateDataMutex.RUnlock()
 	return len(fake.deletePrivateDataArgsForCall)
-func (fake *TxSimulator) GetStateVersion(namespace, key string) (*version.Height, error) {
-	return nil, nil
 }
 
-func (fake *TxSimulator) GetStateCallCount() int {
-	fake.getStateMutex.RLock()
-	defer fake.getStateMutex.RUnlock()
-	return len(fake.getStateArgsForCall)
+func (fake *TxSimulator) GetStateVersion(namespace, key string) (*version.Height, error) {
+	return nil, nil
 }
 
 func (fake *TxSimulator) DeletePrivateDataCalls(stub func(string, string, string) error) {
