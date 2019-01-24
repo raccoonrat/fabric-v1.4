@@ -31,6 +31,10 @@ import (
 )
 
 var logger = flogging.MustGetLogger("kvledger")
+var MVCCQueueLenLock sync.Mutex
+var MVCCQueueLen int64
+var LedgerWriteQueueLenLock sync.Mutex
+var LedgerWriteQueueLen int64
 
 // KVLedger provides an implementation of `ledger.PeerLedger`.
 // This implementation provides a key-value based data model
@@ -315,16 +319,41 @@ func (l *kvLedger) CommitWithPvtData(pvtdataAndBlock *ledger.BlockAndPvtData) er
 	block := pvtdataAndBlock.Block
 	blockNo := pvtdataAndBlock.Block.Header.Number
 
+	MVCCQueueLenLock.Lock()
+	MVCCQueueLen = MVCCQueueLen + int64(len(block.Data.Data))
+	logger.Debugf("MVCC-QLen-Enter %d", MVCCQueueLen)
+	MVCCQueueLenLock.Unlock()
 	startBlockProcessing := time.Now()
 	logger.Debugf("[%s] Validating state for block [%d]", l.ledgerID, blockNo)
 	txstatsInfo, err := l.txtmgmt.ValidateAndPrepare(pvtdataAndBlock, true)
 	if err != nil {
+		MVCCQueueLenLock.Lock()
+		MVCCQueueLen = MVCCQueueLen - int64(len(block.Data.Data))
+		logger.Debugf("MVCC-QLen-Leave %d", MVCCQueueLen)
+		MVCCQueueLenLock.Unlock()
 		return err
 	}
 	elapsedBlockProcessing := time.Since(startBlockProcessing)
 
 	startCommitBlockStorage := time.Now()
 	logger.Debugf("[%s] Committing block [%d] to storage", l.ledgerID, blockNo)
+	MVCCQueueLenLock.Lock()
+	MVCCQueueLen = MVCCQueueLen - int64(len(block.Data.Data))
+	logger.Debugf("MVCC-QLen-Leave %d", MVCCQueueLen)
+	MVCCQueueLenLock.Unlock()
+
+	LedgerWriteQueueLenLock.Lock()
+	LedgerWriteQueueLen = LedgerWriteQueueLen + int64(len(block.Data.Data))
+	logger.Debugf("LWrite-QLen-Enter %d", LedgerWriteQueueLen)
+	LedgerWriteQueueLenLock.Unlock()
+	logger.Debugf("Channel [%s]: Committing block [%d] to storage", l.ledgerID, blockNo)
+
+	defer func() {
+		LedgerWriteQueueLenLock.Lock()
+		LedgerWriteQueueLen = LedgerWriteQueueLen - int64(len(block.Data.Data))
+		logger.Debugf("LWrite-QLen-Leave %d", LedgerWriteQueueLen)
+		LedgerWriteQueueLenLock.Unlock()
+	}()
 	l.blockAPIsRWLock.Lock()
 	defer l.blockAPIsRWLock.Unlock()
 	if err = l.blockStore.CommitWithPvtData(pvtdataAndBlock); err != nil { //向blockstore中提交数据

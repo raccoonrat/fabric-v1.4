@@ -22,6 +22,9 @@ import (
 	"github.com/hyperledger/fabric/protos/utils"
 )
 
+var OSNQueueLenLock sync.Mutex
+var OSNQueueLen int64
+
 // Used for capturing metrics -- see processMessagesToBlocks
 const (
 	indexRecvError = iota
@@ -246,6 +249,10 @@ func (chain *chainImpl) enqueue(kafkaMsg *ab.KafkaMessage) bool {
 				logger.Errorf("[channel: %s] cannot enqueue envelope because = %s", chain.ChainID(), err)
 				return false
 			}
+			OSNQueueLenLock.Lock()
+			OSNQueueLen++
+			logger.Debugf("OSN-QLen-Enter %d", OSNQueueLen)
+			OSNQueueLenLock.Unlock()
 			logger.Debugf("[channel: %s] Envelope enqueued successfully", chain.ChainID())
 			return true
 		}
@@ -602,6 +609,15 @@ func (chain *chainImpl) processRegular(regularMessage *ab.KafkaMessageRegular, r
 			return
 		}
 
+		if !pending && len(batches) == 1 {
+			OSNQueueLenLock.Lock()
+			OSNQueueLen = 0
+			logger.Infof("OSN-QLen-Size-Leave %d", OSNQueueLen)
+			OSNQueueLenLock.Unlock()
+		}
+
+		chain.timer = nil
+
 		offset := receivedOffset
 		if pending || len(batches) == 2 {
 			// If the newest envelope is not encapsulated into the first batch,
@@ -881,6 +897,10 @@ func (chain *chainImpl) processTimeToCut(ttcMessage *ab.KafkaMessageTimeToCut, r
 		chain.WriteBlock(block, metadata)
 		chain.lastCutBlockNumber++
 		logger.Debugf("[channel: %s] Proper time-to-cut received, just cut block %d", chain.ChainID(), chain.lastCutBlockNumber)
+		OSNQueueLenLock.Lock()
+		OSNQueueLen = 0
+		logger.Debugf("OSN-QLen-TTC-Leave %d", OSNQueueLen)
+		OSNQueueLenLock.Unlock()
 		return nil
 	} else if ttcNumber > chain.lastCutBlockNumber+1 {
 		return fmt.Errorf("got larger time-to-cut message (%d) than allowed/expected (%d)"+

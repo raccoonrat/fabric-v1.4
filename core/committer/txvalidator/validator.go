@@ -28,6 +28,7 @@ import (
 	"github.com/hyperledger/fabric/protos/peer"
 	"github.com/hyperledger/fabric/protos/utils"
 	"github.com/pkg/errors"
+	"sync"
 )
 
 // Support provides all of the needed to evaluate the VSCC
@@ -79,6 +80,8 @@ type TxValidator struct {
 }
 
 var logger = flogging.MustGetLogger("committer.txvalidator")
+var VSCCQueueLenLock sync.Mutex
+var VSCCQueueLen int64
 
 type blockValidationRequest struct {
 	block *common.Block
@@ -137,6 +140,7 @@ func (v *TxValidator) Validate(block *common.Block) error {
 	startValidation := time.Now() // timer to log Validate block duration
 	logger.Debugf("[%s] START Block Validation for block [%d]", v.ChainID, block.Header.Number)
 
+	defer logger.Debugf("END Block Validation")
 	// Initialize trans as valid here, then set invalidation reason code upon invalidation below
 	txsfltr := ledgerUtil.NewTxValidationFlags(len(block.Data.Data))
 	// txsChaincodeNames records all the invoked chaincodes by tx in a block
@@ -166,6 +170,10 @@ func (v *TxValidator) Validate(block *common.Block) error {
 
 	logger.Debugf("expecting %d block validation responses", len(block.Data.Data))
 
+	VSCCQueueLenLock.Lock()
+	VSCCQueueLen = VSCCQueueLen + int64(len(block.Data.Data))
+	logger.Debugf("VSCC-QLen-Enter %d", VSCCQueueLen)
+	VSCCQueueLenLock.Unlock()
 	// now we read responses in the order in which they come back
 	for i := 0; i < len(block.Data.Data); i++ {
 		res := <-results
@@ -292,6 +300,12 @@ func (v *TxValidator) validateTx(req *blockValidationRequest, results chan<- *bl
 		// job for VSCC below
 		logger.Debugf("[%s] validateTx starts for block %p env %p txn %d", v.ChainID, block, env, tIdx)
 		defer logger.Debugf("[%s] validateTx completes for block %p env %p txn %d", v.ChainID, block, env, tIdx)
+		defer func() {
+			VSCCQueueLenLock.Lock()
+			VSCCQueueLen--
+			logger.Debugf("VSCC-QLen-Leave %d", VSCCQueueLen)
+			VSCCQueueLenLock.Unlock()
+		}()
 		var payload *common.Payload
 		var err error
 		var txResult peer.TxValidationCode

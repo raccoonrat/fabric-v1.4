@@ -29,9 +29,12 @@ import (
 	putils "github.com/hyperledger/fabric/protos/utils"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"sync"
 )
 
 var endorserLogger = flogging.MustGetLogger("endorser")
+var QueueLenLock sync.Mutex
+var QueueLen int64
 
 // The Jira issue that documents Endorser flow along with its relationship to
 // the lifecycle chaincode - https://jira.hyperledger.org/browse/FAB-181
@@ -448,6 +451,18 @@ func (e *Endorser) ProcessProposal(ctx context.Context, signedProp *pb.SignedPro
 		endorserLogger.Debug("Exit: request from", addr)
 	}()
 
+	QueueLenLock.Lock()
+	QueueLen++
+	endorserLogger.Debug("En-QLen-Enter", QueueLen)
+	QueueLenLock.Unlock()
+
+	defer func() {
+		QueueLenLock.Lock()
+		QueueLen--
+		endorserLogger.Debug("En-QLen-Leave", QueueLen)
+		QueueLenLock.Unlock()
+	}()
+	//0 -- check and validate
 	// 0 -- check and validate
 	vr, err := e.preProcess(signedProp)
 	if err != nil {
