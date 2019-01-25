@@ -7,6 +7,8 @@ WORKDIR /opt/gopath
 RUN mkdir src && mkdir pkg && mkdir bin
 ADD . src/github.com/hyperledger/fabric
 WORKDIR /opt/gopath/src/github.com/hyperledger/fabric
+ENV EXECUTABLES go git
+RUN make smPlugin
 ENV EXECUTABLES go git curl
 RUN make configtxgen configtxlator cryptogen peer discover idemixgen
 
@@ -16,3 +18,4 @@ RUN apt-get update && apt-get install -y jq
 VOLUME /etc/hyperledger/fabric
 COPY --from=builder /opt/gopath/src/github.com/hyperledger/fabric/.build/bin /usr/local/bin
 COPY --from=builder /opt/gopath/src/github.com/hyperledger/fabric/sampleconfig $FABRIC_CFG_PATH
+COPY --from=builder /opt/gopath/src/github.com/hyperledger/fabric/.build/smPlugin.so $FABRIC_CFG_PATH

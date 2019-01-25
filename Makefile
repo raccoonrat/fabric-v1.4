@@ -145,6 +145,7 @@ trailing-spaces:
 	@scripts/check_trailingspaces.sh
 
 include gotools.mk
+include sm.mk
 
 .PHONY: gotools
 gotools: gotools-install
@@ -268,8 +269,10 @@ $(BUILD_DIR)/image/ccenv/payload:      $(BUILD_DIR)/docker/gotools/bin/protoc-ge
 				$(BUILD_DIR)/bin/chaintool \
 				$(BUILD_DIR)/goshim.tar.bz2
 $(BUILD_DIR)/image/peer/payload:       $(BUILD_DIR)/docker/bin/peer \
+				$(BUILD_DIR)/smPlugin.so \
 				$(BUILD_DIR)/sampleconfig.tar.bz2
 $(BUILD_DIR)/image/orderer/payload:    $(BUILD_DIR)/docker/bin/orderer \
+				$(BUILD_DIR)/smPlugin.so \
 				$(BUILD_DIR)/sampleconfig.tar.bz2
 $(BUILD_DIR)/image/buildenv/payload:   $(BUILD_DIR)/gotools.tar.bz2 \
 				$(BUILD_DIR)/docker/gotools/bin/protoc-gen-go

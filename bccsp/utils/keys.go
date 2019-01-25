@@ -21,11 +21,12 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/x509"
 	"encoding/asn1"
 	"encoding/pem"
 	"errors"
 	"fmt"
+
+	"github.com/lenovo/crypto/x509"
 )
 
 // struct to hold info required for PKCS#8

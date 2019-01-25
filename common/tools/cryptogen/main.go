@@ -1,3 +1,5 @@
+// +build IGNORE
+
 /*
 Copyright IBM Corp. All Rights Reserved.
 
