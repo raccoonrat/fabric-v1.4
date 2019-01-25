@@ -7,11 +7,14 @@ SPDX-License-Identifier: Apache-2.0
 package mgmt
 
 import (
+	"os"
 	"reflect"
 	"sync"
 
 	"github.com/hyperledger/fabric/bccsp/factory"
 	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric/core/config"
+	"github.com/hyperledger/fabric/core/config/configtest"
 	"github.com/hyperledger/fabric/msp"
 	"github.com/hyperledger/fabric/msp/cache"
 	"github.com/pkg/errors"
@@ -38,7 +41,22 @@ func LoadLocalMsp(dir string, bccspConfig *factory.FactoryOpts, mspID string) er
 		return errors.New("the local MSP must have an ID")
 	}
 
-	conf, err := msp.GetLocalMspConfig(dir, bccspConfig, mspID)
+	if os.Getenv("FABRIC_CFG_PATH") == "" {
+		cfgDir, _ := configtest.GetDevConfigDir()
+		config.AddConfigPath(nil, cfgDir)
+	}
+	err := config.InitViper(nil, "core")
+	if err != nil {
+		return err
+	}
+	_ = viper.ReadInConfig() // Find and read the config file
+
+	mspType := viper.GetString("peer.localMspType")
+	if mspType == "" {
+		mspType = msp.ProviderTypeToString(msp.FABRIC)
+	}
+
+	conf, err := msp.GetLocalMspConfigWithType(dir, bccspConfig, mspID, mspType)
 	if err != nil {
 		return err
 	}
@@ -144,6 +162,7 @@ func GetLocalMSP() msp.MSP {
 }
 
 func loadLocaMSP() msp.MSP {
+
 	// determine the type of MSP (by default, we'll use bccspMSP)
 	mspType := viper.GetString("peer.localMspType")
 	if mspType == "" {
@@ -153,12 +172,12 @@ func loadLocaMSP() msp.MSP {
 	var mspOpts = map[string]msp.NewOpts{
 		msp.ProviderTypeToString(msp.FABRIC): &msp.BCCSPNewOpts{NewBaseOpts: msp.NewBaseOpts{Version: msp.MSPv1_0}},
 		msp.ProviderTypeToString(msp.IDEMIX): &msp.IdemixNewOpts{NewBaseOpts: msp.NewBaseOpts{Version: msp.MSPv1_1}},
+		msp.ProviderTypeToString(msp.IBPCLA): &msp.IBPCLANewOpts{NewBaseOpts: msp.NewBaseOpts{Version: msp.MSPv1_3}},
 	}
 	newOpts, found := mspOpts[mspType]
 	if !found {
 		mspLogger.Panicf("msp type " + mspType + " unknown")
 	}
-
 	mspInst, err := msp.New(newOpts)
 	if err != nil {
 		mspLogger.Fatalf("Failed to initialize local MSP, received err %+v", err)
@@ -170,6 +189,8 @@ func loadLocaMSP() msp.MSP {
 			mspLogger.Fatalf("Failed to initialize local MSP, received err %+v", err)
 		}
 	case msp.ProviderTypeToString(msp.IDEMIX):
+		// Do nothing
+	case msp.ProviderTypeToString(msp.IBPCLA):
 		// Do nothing
 	default:
 		panic("msp type " + mspType + " unknown")

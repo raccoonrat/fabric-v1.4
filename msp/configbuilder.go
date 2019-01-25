@@ -16,6 +16,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric/bccsp/factory"
+	idconfig "github.com/hyperledger/fabric/ibpcla/identity"
 	"github.com/hyperledger/fabric/protos/msp"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
@@ -117,6 +118,46 @@ func getPemMaterialFromDir(dir string) ([][]byte, error) {
 	return content, nil
 }
 
+func getRawMaterialFromDir(dir string) ([][]byte, error) {
+	mspLogger.Debugf("Reading directory %s", dir)
+
+	_, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		return nil, err
+	}
+
+	content := make([][]byte, 0)
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return nil, errors.Wrapf(err, "could not read directory %s", dir)
+	}
+
+	for _, f := range files {
+		fullName := filepath.Join(dir, f.Name())
+
+		f, err := os.Stat(fullName)
+		if err != nil {
+			mspLogger.Warningf("Failed to stat %s: %s", fullName, err)
+			continue
+		}
+		if f.IsDir() {
+			continue
+		}
+
+		mspLogger.Debugf("Inspecting file %s", fullName)
+
+		item, err := readFile(fullName)
+		if err != nil {
+			mspLogger.Warningf("Failed reading file %s: %s", fullName, err)
+			continue
+		}
+
+		content = append(content, item)
+	}
+
+	return content, nil
+}
+
 const (
 	cacerts              = "cacerts"
 	admincerts           = "admincerts"
@@ -159,6 +200,8 @@ func GetLocalMspConfigWithType(dir string, bccspConfig *factory.FactoryOpts, ID,
 		return GetLocalMspConfig(dir, bccspConfig, ID)
 	case ProviderTypeToString(IDEMIX):
 		return GetIdemixMspConfig(dir, ID)
+	case ProviderTypeToString(IBPCLA):
+		return GetLocalCLMspConfig(dir, bccspConfig, ID)
 	default:
 		return nil, errors.Errorf("unknown MSP type '%s'", mspType)
 	}
@@ -190,6 +233,33 @@ func GetLocalMspConfig(dir string, bccspConfig *factory.FactoryOpts, ID string) 
 	return getMspConfig(dir, ID, sigid)
 }
 
+func GetLocalCLMspConfig(dir string, bccspConfig *factory.FactoryOpts, ID string) (*msp.MSPConfig, error) {
+	IDconfigFile := filepath.Join(dir, CLID, "IDConfig")
+	/*
+		bccspConfig = SetupBCCSPKeystoreConfig(bccspConfig, keystoreDir)
+
+		err := factory.InitFactories(bccspConfig)
+		if err != nil {
+			return nil, errors.WithMessage(err, "could not initialize BCCSP Factories")
+		}
+	*/
+	IDconfig := &idconfig.IdConfig{}
+	err := IDconfig.Load(IDconfigFile)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to load IDconfig from %s", IDconfigFile)
+	}
+
+	sigid := &msp.CLMSPSignerConfig{
+		PA:   IDconfig.Pk,
+		Sk:   IDconfig.Sk,
+		OU:   IDconfig.OrganizationalUnitIdentifier,
+		Role: IDconfig.Role,
+		ID:   IDconfig.EnrollmentID,
+	}
+
+	return GetCLMspConfig(dir, ID, sigid)
+}
+
 // GetVerifyingMspConfig returns an MSP config given directory, ID and type
 func GetVerifyingMspConfig(dir, ID, mspType string) (*msp.MSPConfig, error) {
 	switch mspType {
@@ -197,6 +267,8 @@ func GetVerifyingMspConfig(dir, ID, mspType string) (*msp.MSPConfig, error) {
 		return getMspConfig(dir, ID, nil)
 	case ProviderTypeToString(IDEMIX):
 		return GetIdemixMspConfig(dir, ID)
+	case ProviderTypeToString(IBPCLA):
+		return GetCLMspConfig(dir, ID, nil)
 	default:
 		return nil, errors.Errorf("unknown MSP type '%s'", mspType)
 	}
@@ -399,4 +471,96 @@ func GetIdemixMspConfig(dir string, ID string) (*msp.MSPConfig, error) {
 	}
 
 	return &msp.MSPConfig{Config: confBytes, Type: int32(IDEMIX)}, nil
+}
+
+const (
+	CLKGCPubs  = "kgcpubs"
+	CLID       = "CLID"
+	prlsfolder = "prls"
+)
+
+func GetCLMspConfig(dir string, ID string, sigid *msp.CLMSPSignerConfig) (*msp.MSPConfig, error) {
+	KGCPubDir := filepath.Join(dir, CLKGCPubs)
+	adminconfigFile := filepath.Join(dir, CLID, "AdminConfig")
+	prlsDir := filepath.Join(dir, prlsfolder)
+	tlscacertDir := filepath.Join(dir, tlscacerts)
+	tlsintermediatecertsDir := filepath.Join(dir, tlsintermediatecerts)
+
+	kgcpubs, err := getRawMaterialFromDir(KGCPubDir)
+	if err != nil || len(kgcpubs) == 0 {
+		return nil, errors.WithMessage(err, fmt.Sprintf("could not load a valid kgc pubkeys from dir %s", KGCPubDir))
+	}
+
+	adminconfig := &idconfig.IdConfig{}
+	err = adminconfig.Load(adminconfigFile)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to load adminconfig from %s", adminconfigFile)
+	}
+	CLAdminConfig := &msp.CLMSPAdminConfig{
+		PA:   adminconfig.Pk,
+		OU:   adminconfig.OrganizationalUnitIdentifier,
+		Role: adminconfig.Role,
+		ID:   adminconfig.EnrollmentID,
+	}
+	adminPA := make([]*msp.CLMSPAdminConfig, 0)
+	adminPA = append(adminPA, CLAdminConfig)
+
+	/*
+		intermediatepubs, err := getPemMaterialFromDir(intermediatecertsDir)
+		if os.IsNotExist(err) {
+			mspLogger.Debugf("Intermediate certs folder not found at [%s]. Skipping. [%s]", intermediatecertsDir, err)
+		} else if err != nil {
+			return nil, errors.WithMessage(err, fmt.Sprintf("failed loading intermediate ca certs at [%s]", intermediatecertsDir))
+		}
+	*/
+
+	tlsCACerts, err := getPemMaterialFromDir(tlscacertDir)
+	tlsIntermediateCerts := [][]byte{}
+	if os.IsNotExist(err) {
+		mspLogger.Debugf("TLS CA certs folder not found at [%s]. Skipping and ignoring TLS intermediate CA folder. [%s]", tlsintermediatecertsDir, err)
+	} else if err != nil {
+		return nil, errors.WithMessage(err, fmt.Sprintf("failed loading TLS ca certs at [%s]", tlsintermediatecertsDir))
+	} else if len(tlsCACerts) != 0 {
+		tlsIntermediateCerts, err = getPemMaterialFromDir(tlsintermediatecertsDir)
+		if os.IsNotExist(err) {
+			mspLogger.Debugf("TLS intermediate certs folder not found at [%s]. Skipping. [%s]", tlsintermediatecertsDir, err)
+		} else if err != nil {
+			return nil, errors.WithMessage(err, fmt.Sprintf("failed loading TLS intermediate ca certs at [%s]", tlsintermediatecertsDir))
+		}
+	} else {
+		mspLogger.Debugf("TLS CA certs folder at [%s] is empty. Skipping.", tlsintermediatecertsDir)
+	}
+
+	prls, err := getPemMaterialFromDir(prlsDir)
+	if os.IsNotExist(err) {
+		mspLogger.Debugf("prls folder not found at [%s]. Skipping. [%s]", prlsDir, err)
+	} else if err != nil {
+		return nil, errors.WithMessage(err, fmt.Sprintf("failed loading prls at [%s]", prlsDir))
+	}
+
+	// Set FabricCryptoConfig
+	cryptoConfig := &msp.FabricCryptoConfig{
+		SignatureHashFamily:            bccsp.SHA2,
+		IdentityIdentifierHashFunction: bccsp.SHA256,
+	}
+
+	// Compose CLMSPConfig
+	fmspconf := &msp.CLMSPConfig{
+		Admins:  adminPA,
+		KGCPubs: kgcpubs,
+		//IntermediateCerts:             intermediatepubs,
+		CLSigningIdentity: sigid,
+		Name:              ID,
+		//OrganizationalUnitIdentifiers: ouis,
+		RevocationList:       prls,
+		CryptoConfig:         cryptoConfig,
+		TlsRootCerts:         tlsCACerts,
+		TlsIntermediateCerts: tlsIntermediateCerts,
+	}
+
+	fmpsjs, _ := proto.Marshal(fmspconf)
+
+	mspconf := &msp.MSPConfig{Config: fmpsjs, Type: int32(IBPCLA)}
+
+	return mspconf, nil
 }

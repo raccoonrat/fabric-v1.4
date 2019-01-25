@@ -484,7 +484,7 @@ func updateTrustedRoots(srv *comm.GRPCServer, rootCASupport *comm.CASupport,
 	}
 	for k, v := range msps {
 		// check to see if this is a FABRIC MSP
-		if v.GetType() == msp.FABRIC {
+		if v.GetType() == msp.FABRIC || v.GetType() == msp.IBPCLA {
 			for _, root := range v.GetTLSRootCerts() {
 				// check to see of this is an app org MSP
 				if _, ok := appOrgMSPs[k]; ok {

@@ -131,7 +131,7 @@ func serve(args []string) error {
 	// the peer only comes up with the standard MSP
 	mspType := mgmt.GetLocalMSP().GetType() //获取本地MSP
 	if mspType != msp.FABRIC {
-		panic("Unsupported msp type " + msp.ProviderTypeToString(mspType))
+		//panic("Unsupported msp type " + msp.ProviderTypeToString(mspType))
 	}
 
 	// Trace RPCs with the golang.org/x/net/trace package. This was moved out of

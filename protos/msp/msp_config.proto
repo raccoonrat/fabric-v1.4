@@ -206,3 +206,82 @@ message FabricNodeOUs {
     FabricOUIdentifier peer_ou_identifier = 3;
 
 }
+
+// CLMSPConfig collects all the configuration information for
+// an IBPCLA MSP.
+message CLMSPConfig {
+    // Name holds the identifier of the MSP
+    string name = 1;
+
+    // List of root kgc pubs trusted by this MSP
+    // they are used upon certificate validation (see
+    // comment for IntermediateCerts below)
+    repeated bytes KGC_pubs = 2;
+
+    // Identity denoting the administrator of this MSP
+    repeated CLMSPAdminConfig admins = 3;
+
+    // Identity revocation list
+    repeated bytes revocation_list = 4;
+
+    // SigningIdentity holds information on the signing identity
+    // this peer is to use, and which is to be imported by the
+    // MSP defined before
+    CLMSPSignerConfig CLSigningIdentity = 5;
+
+    // OrganizationalUnitIdentifiers holds one or more
+    // fabric organizational unit identifiers that belong to
+    // this MSP configuration
+    repeated FabricOUIdentifier organizational_unit_identifiers = 6;
+
+    // FabricCryptoConfig contains the configuration parameters
+    // for the cryptographic algorithms used by this MSP
+    FabricCryptoConfig crypto_config = 7;
+
+    // List of TLS root certificates trusted by this MSP.
+    // They are returned by GetTLSRootCerts.
+    repeated bytes tls_root_certs = 8;
+
+    // List of TLS intermediate certificates trusted by this MSP;
+    // They are returned by GetTLSIntermediateCerts.
+    repeated bytes tls_intermediate_certs = 9;
+
+    // fabric_node_ous contains the configuration to distinguish clients from peers from orderers
+    // based on the OUs.
+    FabricNodeOUs fabric_node_ous = 10;
+}
+
+// IBPCLAMSPSIgnerConfig contains the crypto material to set up an ibpcla signing identity
+message CLMSPSignerConfig {
+
+    // sk is the secret key of the default signer, corresponding to credential Cred
+    bytes sk = 1;
+
+    // PA is the vice identity of the signer
+    bytes PA = 2;
+
+    // ou defines the organizational unit the default signer is in
+    string OU = 3;
+
+    // role defines whether the default signer is admin, peer, member or client
+    string Role = 4;
+
+    // ID is the identity of the signer
+    string ID = 5;
+}
+
+// IBPCLAMSPAdminConfig contains the crypto material to set up an ibpcla admin identity
+message CLMSPAdminConfig {
+
+    // PA is the vice identity of the admin 
+    bytes PA = 1;
+
+    // ou defines the organizational unit the default admin is in
+    string OU = 2;
+
+    // role defines whether the default signer is admin, peer, member or client
+    string Role = 3;
+
+    // ID is the identity of the admin 
+    string ID = 4;
+}

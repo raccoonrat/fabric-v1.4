@@ -1,0 +1,15 @@
+ID: peer0.org1.example.com
+
+OrganizationalUnitIdentifiers:
+  - Certificate: "kgcpubs/kgc.org1.example.com-pubkey.pem"
+    OrganizationalUnitIdentifier: "COP"
+
+NodeOUs:
+  Enable: false
+  ClientOUIdentifier:
+    # if Certificate is empty, then the certifier identifier will not be enforced
+    Certificate: "kgcpubs/kgc.org1.example.com-pubkey.pem"
+    OrganizationalUnitIdentifier: "OU_client"
+  PeerOUIdentifier:
+    Certificate: "kgcpubs/kgc.org1.example.com-pubkey.pem"
+    OrganizationalUnitIdentifier: "OU_peer"

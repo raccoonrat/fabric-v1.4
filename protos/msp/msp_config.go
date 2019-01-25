@@ -35,6 +35,8 @@ func (mc *MSPConfig) VariablyOpaqueFieldProto(name string) (proto.Message, error
 		return &FabricMSPConfig{}, nil
 	case 1:
 		return &IdemixMSPConfig{}, nil
+	case 2:
+		return &CLMSPConfig{}, nil
 	default:
 		return nil, fmt.Errorf("unable to decode MSP type: %v", mc.Type)
 	}

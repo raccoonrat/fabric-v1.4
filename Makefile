@@ -12,6 +12,7 @@
 #   - configtxgen - builds a native configtxgen binary
 #   - configtxlator - builds a native configtxlator binary
 #   - cryptogen  -  builds a native cryptogen binary
+#   - clgen  -  builds a native clgen binary
 #   - idemixgen  -  builds a native idemixgen binary
 #   - peer - builds a native fabric peer binary
 #   - orderer - builds a native fabric orderer binary
@@ -98,9 +99,10 @@ PROJECT_FILES = $(shell git ls-files  | grep -v ^test | grep -v ^unit-test | \
 RELEASE_TEMPLATES = $(shell git ls-files | grep "release/templates")
 IMAGES = peer orderer ccenv buildenv tools
 RELEASE_PLATFORMS = windows-amd64 darwin-amd64 linux-amd64 linux-s390x linux-ppc64le
-RELEASE_PKGS = configtxgen cryptogen idemixgen discover configtxlator peer orderer
+RELEASE_PKGS = configtxgen cryptogen clgen idemixgen discover configtxlator peer orderer
 
 pkgmap.cryptogen      := $(PKGNAME)/common/tools/cryptogen
+pkgmap.clgen          := $(PKGNAME)/common/tools/clgen
 pkgmap.idemixgen      := $(PKGNAME)/common/tools/idemixgen
 pkgmap.configtxgen    := $(PKGNAME)/common/tools/configtxgen
 pkgmap.configtxlator  := $(PKGNAME)/common/tools/configtxlator
@@ -167,6 +169,9 @@ configtxlator: $(BUILD_DIR)/bin/configtxlator
 cryptogen: GO_LDFLAGS=-X $(pkgmap.$(@F))/metadata.CommitSHA=$(EXTRA_VERSION)
 cryptogen: $(BUILD_DIR)/bin/cryptogen
 
+clgen: GO_LDFLAGS=-X $(pkgmap.$(@F))/metadata.CommitSHA=$(EXTRA_VERSION)
+clgen: $(BUILD_DIR)/bin/clgen
+
 idemixgen: GO_LDFLAGS=-X $(pkgmap.$(@F))/metadata.CommitSHA=$(EXTRA_VERSION)
 idemixgen: $(BUILD_DIR)/bin/idemixgen
 
@@ -202,7 +207,7 @@ test-cmd:
 
 docker: $(patsubst %,$(BUILD_DIR)/image/%/$(DUMMY), $(IMAGES))
 
-native: peer orderer configtxgen cryptogen idemixgen configtxlator discover
+native: peer orderer configtxgen cryptogen clgen idemixgen configtxlator discover
 
 linter: check-deps buildenv
 	@echo "LINT: Running code checks.."
@@ -276,6 +281,8 @@ $(BUILD_DIR)/image/buildenv/payload:   $(BUILD_DIR)/gotools.tar.bz2 \
 
 $(BUILD_DIR)/image/%/payload:
 	mkdir -p $@
+	#go install ./vendor/github.com/golang/protobuf/protoc-gen-go/
+	#cp $(GOPATH)/bin/protoc-gen-go .build/docker/gotools/bin/
 	cp $^ $@
 
 .PRECIOUS: $(BUILD_DIR)/image/%/Dockerfile
@@ -360,6 +367,11 @@ release/%/bin/configtxgen: $(PROJECT_FILES)
 	$(CGO_FLAGS) GOOS=$(GOOS) GOARCH=$(GOARCH) go build -o $(abspath $@) -tags "$(GO_TAGS)" -ldflags "$(GO_LDFLAGS)" $(pkgmap.$(@F))
 
 release/%/bin/cryptogen: $(PROJECT_FILES)
+	@echo "Building $@ for $(GOOS)-$(GOARCH)"
+	mkdir -p $(@D)
+	$(CGO_FLAGS) GOOS=$(GOOS) GOARCH=$(GOARCH) go build -o $(abspath $@) -tags "$(GO_TAGS)" -ldflags "$(GO_LDFLAGS)" $(pkgmap.$(@F))
+
+release/%/bin/clgen: $(PROJECT_FILES)
 	@echo "Building $@ for $(GOOS)-$(GOARCH)"
 	mkdir -p $(@D)
 	$(CGO_FLAGS) GOOS=$(GOOS) GOARCH=$(GOARCH) go build -o $(abspath $@) -tags "$(GO_TAGS)" -ldflags "$(GO_LDFLAGS)" $(pkgmap.$(@F))
