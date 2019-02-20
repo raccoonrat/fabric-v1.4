@@ -10,7 +10,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"testing"
-	"crypto/sm/sm3"
+	"github.com/lenovo/crypto/sm/sm3"
 )
 
 func TestSignVerify(t *testing.T) {
@@ -83,6 +83,21 @@ func BenchmarkSign(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _, _ = Sign(rand.Reader, priv, hashed[:])
+	}
+}
+
+func BenchmarkSignAndVerify(b *testing.B) {
+	b.ResetTimer()
+	origin := []byte("testing")
+	hash := sm3.New()
+	hash.Write(origin)
+	hashed := hash.Sum(nil)
+	priv, _ := GenerateKey(rand.Reader)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r, s, _ := Sign(rand.Reader, priv, hashed[:])
+		Verify(&priv.PublicKey, hashed, r, s)
 	}
 }
 
