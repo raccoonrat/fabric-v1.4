@@ -67,7 +67,7 @@ func randFieldElement(c elliptic.Curve, rand io.Reader) (k *big.Int, err error) 
 }
 
 func GenerateKey(rand io.Reader) (*PrivateKey, error) {
-	c := P256Sm2()
+	c := SM2P256V1()
 	k, err := randFieldElement(c, rand)
 	if err != nil {
 		return nil, err
