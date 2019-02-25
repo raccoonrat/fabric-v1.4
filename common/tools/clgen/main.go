@@ -61,10 +61,6 @@ type NodeSpec struct {
 	SANS               []string `yaml:"SANS"`
 }
 
-type KGCSpec struct {
-	CommonName string `yaml:"CommonName"`
-}
-
 type UsersSpec struct {
 	Count int `yaml:"Count"`
 }
@@ -74,7 +70,7 @@ type OrgSpec struct {
 	Domain        string       `yaml:"Domain"`
 	EnableNodeOUs bool         `yaml:"EnableNodeOUs"`
 	CA            NodeSpec     `yaml:"CA"`
-	KGC           KGCSpec      `yaml:"KGC"`
+	KGC           NodeSpec     `yaml:"KGC"`
 	Template      NodeTemplate `yaml:"Template"`
 	Specs         []NodeSpec   `yaml:"Specs"`
 	Users         UsersSpec    `yaml:"Users"`
@@ -127,6 +123,15 @@ PeerOrgs:
     #    OrganizationalUnit: Hyperledger Fabric
     #    StreetAddress: address for org # default nil
     #    PostalCode: postalCode for org # default nil
+
+    # ---------------------------------------------------------------------------
+    # "KGC"
+    # ---------------------------------------------------------------------------
+    # Uncomment this section to enable the explicit definition of the KGC for this
+    # organization.  This entry is a Spec.  See "Specs" section below for details.
+    # ---------------------------------------------------------------------------
+    # KGC:
+    #    Hostname: kgc # implicitly kgc.org1.example.com
 
     # ---------------------------------------------------------------------------
     # "Specs"
@@ -308,13 +313,13 @@ func extendPeerOrg(orgSpec OrgSpec) {
 
 	peersDir := filepath.Join(orgDir, "peers")
 	usersDir := filepath.Join(orgDir, "users")
-	caDir := filepath.Join(orgDir, "ca")
+	kgcDir := filepath.Join(orgDir, "kgc")
 	tlscaDir := filepath.Join(orgDir, "tlsca")
 
-	signCA := getCA(caDir, orgSpec, orgSpec.CA.CommonName)
+	signKGC := getKGC(kgcDir, orgSpec, orgSpec.KGC.CommonName)
 	tlsCA := getCA(tlscaDir, orgSpec, "tls"+orgSpec.CA.CommonName)
 
-	generateNodes(peersDir, orgSpec.Specs, signCA, tlsCA, msp.PEER, orgSpec.EnableNodeOUs)
+	generateNodes(peersDir, orgSpec.Specs, signKGC, tlsCA, msp.PEER, orgSpec.EnableNodeOUs)
 
 	adminUser := NodeSpec{
 		CommonName: fmt.Sprintf("%s@%s", adminBaseName, orgName),
@@ -340,14 +345,14 @@ func extendPeerOrg(orgSpec OrgSpec) {
 		users = append(users, user)
 	}
 
-	generateNodes(usersDir, users, signCA, tlsCA, msp.CLIENT, orgSpec.EnableNodeOUs)
+	generateNodes(usersDir, users, signKGC, tlsCA, msp.CLIENT, orgSpec.EnableNodeOUs)
 }
 
 func extendOrdererOrg(orgSpec OrgSpec) {
 	orgName := orgSpec.Domain
 
 	orgDir := filepath.Join(*inputDir, "ordererOrganizations", orgName)
-	caDir := filepath.Join(orgDir, "ca")
+	kgcDir := filepath.Join(orgDir, "kgc")
 	usersDir := filepath.Join(orgDir, "users")
 	tlscaDir := filepath.Join(orgDir, "tlsca")
 	orderersDir := filepath.Join(orgDir, "orderers")
@@ -356,10 +361,10 @@ func extendOrdererOrg(orgSpec OrgSpec) {
 		return
 	}
 
-	signCA := getCA(caDir, orgSpec, orgSpec.CA.CommonName)
+	signKGC := getKGC(kgcDir, orgSpec, orgSpec.KGC.CommonName)
 	tlsCA := getCA(tlscaDir, orgSpec, "tls"+orgSpec.CA.CommonName)
 
-	generateNodes(orderersDir, orgSpec.Specs, signCA, tlsCA, msp.ORDERER, false)
+	generateNodes(orderersDir, orgSpec.Specs, signKGC, tlsCA, msp.ORDERER, false)
 
 	adminUser := NodeSpec{
 		CommonName: fmt.Sprintf("%s@%s", adminBaseName, orgName),
@@ -503,6 +508,16 @@ func renderOrgSpec(orgSpec *OrgSpec, prefix string) error {
 		return err
 	}
 
+	//to do
+	// Process the KGC node-spec in the same manner
+	if len(orgSpec.KGC.Hostname) == 0 {
+		orgSpec.KGC.Hostname = "kgc"
+	}
+	err = renderNodeSpec(orgSpec.Domain, &orgSpec.KGC)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -555,7 +570,7 @@ func generatePeerOrg(baseDir string, orgSpec OrgSpec) {
 	}
 
 	users = append(users, adminUser)
-	generateNodes(usersDir, users, signCA, tlsCA, msp.CLIENT, orgSpec.EnableNodeOUs)
+	generateNodes(usersDir, users, signKGC, tlsCA, msp.CLIENT, orgSpec.EnableNodeOUs)
 
 	// copy the admin cert to the org's MSP admincerts
 	err = copyAdminCert(usersDir, adminCertsDir, adminUser.CommonName)
@@ -579,7 +594,7 @@ func generatePeerOrg(baseDir string, orgSpec OrgSpec) {
 
 func copyAdminCert(usersDir, adminCertsDir, adminUserName string) error {
 	if _, err := os.Stat(filepath.Join(adminCertsDir,
-		adminUserName+"-cert.pem")); err == nil {
+		adminUserName+"-PA.pem")); err == nil {
 		return nil
 	}
 	// delete the contents of admincerts
@@ -593,8 +608,8 @@ func copyAdminCert(usersDir, adminCertsDir, adminUserName string) error {
 		return err
 	}
 	err = copyFile(filepath.Join(usersDir, adminUserName, "msp", "signcerts",
-		adminUserName+"-cert.pem"), filepath.Join(adminCertsDir,
-		adminUserName+"-cert.pem"))
+		adminUserName+"-PA.pem"), filepath.Join(adminCertsDir,
+		adminUserName+"-PA.pem"))
 	if err != nil {
 		return err
 	}
@@ -622,16 +637,16 @@ func generateOrdererOrg(baseDir string, orgSpec OrgSpec) {
 
 	// generate CAs
 	orgDir := filepath.Join(baseDir, "ordererOrganizations", orgName)
-	caDir := filepath.Join(orgDir, "ca")
+	kgcDir := filepath.Join(orgDir, "kgc")
 	tlsCADir := filepath.Join(orgDir, "tlsca")
 	mspDir := filepath.Join(orgDir, "msp")
 	orderersDir := filepath.Join(orgDir, "orderers")
 	usersDir := filepath.Join(orgDir, "users")
 	adminCertsDir := filepath.Join(mspDir, "admincerts")
-	// generate signing CA
-	signCA, err := ca.NewCA(caDir, orgName, orgSpec.CA.CommonName, orgSpec.CA.Country, orgSpec.CA.Province, orgSpec.CA.Locality, orgSpec.CA.OrganizationalUnit, orgSpec.CA.StreetAddress, orgSpec.CA.PostalCode)
+	// generate signing KGC
+	signKGC, err := kgc.NewKGC(kgcDir, orgName, orgSpec.KGC.CommonName)
 	if err != nil {
-		fmt.Printf("Error generating signCA for org %s:\n%v\n", orgName, err)
+		fmt.Printf("Error generating signKGC for org %s:\n%v\n", orgName, err)
 		os.Exit(1)
 	}
 	// generate TLS CA
@@ -641,13 +656,13 @@ func generateOrdererOrg(baseDir string, orgSpec OrgSpec) {
 		os.Exit(1)
 	}
 
-	err = msp.GenerateVerifyingMSP(mspDir, signCA, tlsCA, false)
+	err = msp.GenerateVerifyingMSP(mspDir, signKGC, tlsCA, false)
 	if err != nil {
 		fmt.Printf("Error generating MSP for org %s:\n%v\n", orgName, err)
 		os.Exit(1)
 	}
 
-	generateNodes(orderersDir, orgSpec.Specs, signCA, tlsCA, msp.ORDERER, false)
+	generateNodes(orderersDir, orgSpec.Specs, signKGC, tlsCA, msp.ORDERER, false)
 
 	adminUser := NodeSpec{
 		CommonName: fmt.Sprintf("%s@%s", adminBaseName, orgName),
@@ -657,7 +672,7 @@ func generateOrdererOrg(baseDir string, orgSpec OrgSpec) {
 	users := []NodeSpec{}
 	// add an admin user
 	users = append(users, adminUser)
-	generateNodes(usersDir, users, signCA, tlsCA, msp.CLIENT, false)
+	generateNodes(usersDir, users, signKGC, tlsCA, msp.CLIENT, false)
 
 	// copy the admin cert to the org's MSP admincerts
 	err = copyAdminCert(usersDir, adminCertsDir, adminUser.CommonName)
@@ -717,5 +732,18 @@ func getCA(caDir string, spec OrgSpec, name string) *ca.CA {
 		OrganizationalUnit: spec.CA.OrganizationalUnit,
 		StreetAddress:      spec.CA.StreetAddress,
 		PostalCode:         spec.CA.PostalCode,
+	}
+}
+
+func getKGC(kgcDir string, spec OrgSpec, name string) *kgc.KGC {
+	s, _ := csp.LoadKGCMasterKey(kgcDir)
+	pub, rawpub, _ := kgc.LoadKGCPublicKey(kgcDir)
+
+	return &kgc.KGC{
+		Name:         name,
+		MasterKey:    s,
+		MasterPub:    pub,
+		RawPub:       rawpub,
+		Organization: spec.Domain,
 	}
 }

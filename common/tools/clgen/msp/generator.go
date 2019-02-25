@@ -60,9 +60,10 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 	*/
 	// get keystore path
 	keystore := filepath.Join(mspDir, "keystore")
+	clientxstore := filepath.Join(mspDir, "keystore", "client_x")
 
 	// generate x
-	priv, _, err := csp.GeneratePrivateKey(keystore)
+	priv, _, err := csp.GeneratePrivateKey(clientxstore)
 	if err != nil {
 		return err
 	}
@@ -82,7 +83,11 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 	}
 
 	//client generate final key
-	err := csp.GenFinalKeyPair(keystore, priv, partialkey)
+	epriv, err := csp.LoadCLPrivateKey(clientxstore, priv.SKI())
+	if err != nil {
+		return err
+	}
+	err = csp.GenFinalKeyPair(keystore, name, epriv, partialkey.PartialPrivateKey.Bytes(), partialkey.PartialPublickKey.Bytes())
 	if err != nil {
 		return err
 	}
@@ -90,7 +95,7 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 	// write artifacts to MSP folders
 
 	// the signing KGC pubkey goes into kgcpubs
-	err = MasterPubExport(filepath.Join(baseDir, "kgcpubs", MasterPubFilename(signKGC.Name)), signKGC.RawPub)
+	err = MasterPubExport(filepath.Join(mspDir, "kgcpubs", MasterPubFilename(signKGC.Name)), signKGC.RawPub)
 	if err != nil {
 		return err
 	}
@@ -112,7 +117,7 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 	// cleared up anyway by copyAdminCert, but
 	// we leave a valid admin for now for the sake
 	// of unit tests
-	err = MasterPubExport(filepath.Join(mspDir, "admincerts", MasterPubFilename(name)),
+	err = MasterPubExport(filepath.Join(mspDir, "admincerts", name+"-PA.pem"),
 		partialkey.PartialPublickKey.Bytes())
 	if err != nil {
 		return err
@@ -218,6 +223,7 @@ func createFolderStructure(rootDir string, local bool) error {
 	if local {
 		folders = append(folders, filepath.Join(rootDir, "keystore"),
 			filepath.Join(rootDir, "signcerts"))
+		folders = append(folders, filepath.Join(rootDir, "keystore", "client_x"))
 	}
 
 	for _, folder := range folders {

@@ -43,6 +43,11 @@ type IdemixNewOpts struct {
 	NewBaseOpts
 }
 
+// IBPCLANewOpts contains the options to instantiate a new IBPCLA MSP
+type IBPCLANewOpts struct {
+	NewBaseOpts
+}
+
 // New create a new MSP instance depending on the passed Opts
 func New(opts NewOpts) (MSP, error) {
 	switch opts.(type) {
@@ -66,6 +71,14 @@ func New(opts NewOpts) (MSP, error) {
 		default:
 			return nil, errors.Errorf("Invalid *IdemixNewOpts. Version not recognized [%v]", opts.GetVersion())
 		}
+	case *IBPCLANewOpts:
+		switch opts.GetVersion() {
+		case MSPv1_3:
+			return newIBPCLAMsp(MSPv1_3)
+		default:
+			return nil, errors.Errorf("Invalid *IBPCLAOpts. Version not recognized [%v]", opts.GetVersion())
+		}
+
 	default:
 		return nil, errors.Errorf("Invalid msp.NewOpts instance. It must be either *BCCSPNewOpts or *IdemixNewOpts. It was [%v]", opts)
 	}

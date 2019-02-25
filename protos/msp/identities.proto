@@ -47,3 +47,20 @@ message SerializedIdemixIdentity {
     // proof contains the cryptographic evidence that this identity is valid
     bytes proof = 5;
 }
+
+// This struct represents an IBPCLA Identity
+// to be used to serialize it and deserialize it.
+// The IBPCLAMSP will first serialize an ibpcla identity to bytes using
+// this proto, and then uses these bytes as id_bytes in SerializedIdentity
+message SerializedIBPCLAIdentity {
+	// PA is the vice identity, it is an elliptic curve point generated from KGC.
+    	// It is a []byte representation of BIG.int with X coordinate along with Y coordinate
+    	// PA is used to recover public keys then verify signatures.
+	bytes PA = 1;
+
+    	// ou contains the organizational unit of the ibpcla identity
+	bytes ou = 2;
+
+    	// role contains the role of this identity (e.g., ADMIN or MEMBER)
+    	bytes role = 3;
+}

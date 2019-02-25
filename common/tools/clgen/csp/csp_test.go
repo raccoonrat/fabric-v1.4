@@ -3,121 +3,337 @@ Copyright IBM Corp. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 */
-package csp_test
+package csp
 
 import (
+	"crypto"
 	"crypto/ecdsa"
-	"encoding/hex"
-	"errors"
-	"os"
-	"path/filepath"
+	"crypto/elliptic"
+	"encoding/asn1"
+	"math/big"
+	"reflect"
 	"testing"
 
 	"github.com/hyperledger/fabric/bccsp"
-	"github.com/hyperledger/fabric/common/tools/cryptogen/csp"
-	"github.com/stretchr/testify/assert"
 )
 
-// mock implementation of bccsp.Key interface
-type mockKey struct {
-	pubKeyErr error
-	bytesErr  error
-	pubKey    bccsp.Key
-}
-
-func (mk *mockKey) Bytes() ([]byte, error) {
-	if mk.bytesErr != nil {
-		return nil, mk.bytesErr
-	}
-	return []byte{1, 2, 3, 4}, nil
-}
-
-func (mk *mockKey) PublicKey() (bccsp.Key, error) {
-	if mk.pubKeyErr != nil {
-		return nil, mk.pubKeyErr
-	}
-	return mk.pubKey, nil
-}
-
-func (mk *mockKey) SKI() []byte { return []byte{1, 2, 3, 4} }
-
-func (mk *mockKey) Symmetric() bool { return false }
-
-func (mk *mockKey) Private() bool { return false }
-
-var testDir = filepath.Join(os.TempDir(), "csp-test")
-
 func TestLoadPrivateKey(t *testing.T) {
-	priv, _, _ := csp.GeneratePrivateKey(testDir)
-	pkFile := filepath.Join(testDir, hex.EncodeToString(priv.SKI())+"_sk")
-	assert.Equal(t, true, checkForFile(pkFile),
-		"Expected to find private key file")
-	loadedPriv, _, _ := csp.LoadPrivateKey(testDir)
-	assert.NotNil(t, loadedPriv, "Should have returned a bccsp.Key")
-	assert.Equal(t, priv.SKI(), loadedPriv.SKI(), "Should have same subject identifier")
-	cleanup(testDir)
+	type args struct {
+		keystorePath string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    bccsp.Key
+		want1   crypto.Signer
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1, err := LoadPrivateKey(tt.args.keystorePath)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("LoadPrivateKey() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("LoadPrivateKey() got = %v, want %v", got, tt.want)
+			}
+			if !reflect.DeepEqual(got1, tt.want1) {
+				t.Errorf("LoadPrivateKey() got1 = %v, want %v", got1, tt.want1)
+			}
+		})
+	}
+}
+
+func TestLoadKGCMasterKey(t *testing.T) {
+	type args struct {
+		keystorePath string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *ecdsa.PrivateKey
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := LoadKGCMasterKey(tt.args.keystorePath)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("LoadKGCMasterKey() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("LoadKGCMasterKey() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
 
 func TestGeneratePrivateKey(t *testing.T) {
-
-	priv, signer, err := csp.GeneratePrivateKey(testDir)
-	assert.NoError(t, err, "Failed to generate private key")
-	assert.NotNil(t, priv, "Should have returned a bccsp.Key")
-	assert.Equal(t, true, priv.Private(), "Failed to return private key")
-	assert.NotNil(t, signer, "Should have returned a crypto.Signer")
-	pkFile := filepath.Join(testDir, hex.EncodeToString(priv.SKI())+"_sk")
-	t.Log(pkFile)
-	assert.Equal(t, true, checkForFile(pkFile),
-		"Expected to find private key file")
-	cleanup(testDir)
-
+	type args struct {
+		keystorePath string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    bccsp.Key
+		want1   crypto.Signer
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1, err := GeneratePrivateKey(tt.args.keystorePath)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GeneratePrivateKey() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GeneratePrivateKey() got = %v, want %v", got, tt.want)
+			}
+			if !reflect.DeepEqual(got1, tt.want1) {
+				t.Errorf("GeneratePrivateKey() got1 = %v, want %v", got1, tt.want1)
+			}
+		})
+	}
 }
 
 func TestGetECPublicKey(t *testing.T) {
-
-	priv, _, err := csp.GeneratePrivateKey(testDir)
-	assert.NoError(t, err, "Failed to generate private key")
-
-	ecPubKey, err := csp.GetECPublicKey(priv)
-	assert.NoError(t, err, "Failed to get public key from private key")
-	assert.IsType(t, &ecdsa.PublicKey{}, ecPubKey,
-		"Failed to return an ecdsa.PublicKey")
-
-	// force errors using mockKey
-	priv = &mockKey{
-		pubKeyErr: nil,
-		bytesErr:  nil,
-		pubKey:    &mockKey{},
+	type args struct {
+		priv bccsp.Key
 	}
-	_, err = csp.GetECPublicKey(priv)
-	assert.Error(t, err, "Expected an error with a invalid pubKey bytes")
-	priv = &mockKey{
-		pubKeyErr: nil,
-		bytesErr:  nil,
-		pubKey: &mockKey{
-			bytesErr: errors.New("bytesErr"),
-		},
+	tests := []struct {
+		name    string
+		args    args
+		want    *ecdsa.PublicKey
+		wantErr bool
+	}{
+		// TODO: Add test cases.
 	}
-	_, err = csp.GetECPublicKey(priv)
-	assert.EqualError(t, err, "bytesErr", "Expected bytesErr")
-	priv = &mockKey{
-		pubKeyErr: errors.New("pubKeyErr"),
-		bytesErr:  nil,
-		pubKey:    &mockKey{},
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := GetECPublicKey(tt.args.priv)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetECPublicKey() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetECPublicKey() = %v, want %v", got, tt.want)
+			}
+		})
 	}
-	_, err = csp.GetECPublicKey(priv)
-	assert.EqualError(t, err, "pubKeyErr", "Expected pubKeyErr")
-
-	cleanup(testDir)
 }
 
-func cleanup(dir string) {
-	os.RemoveAll(dir)
+func TestKGCGeneratePrivateKey(t *testing.T) {
+	type args struct {
+		keystorePath string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    bccsp.Key
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := KGCGeneratePrivateKey(tt.args.keystorePath)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("KGCGeneratePrivateKey() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("KGCGeneratePrivateKey() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
 
-func checkForFile(file string) bool {
-	if _, err := os.Stat(file); os.IsNotExist(err) {
-		return false
+func TestBccspKey2ecdsaKey(t *testing.T) {
+	type args struct {
+		bkey bccsp.Key
 	}
-	return true
+	tests := []struct {
+		name    string
+		args    args
+		want    *ecdsa.PrivateKey
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := BccspKey2ecdsaKey(tt.args.bkey)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("BccspKey2ecdsaKey() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("BccspKey2ecdsaKey() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestKGCGetECPublicKey(t *testing.T) {
+	type args struct {
+		priv         bccsp.Key
+		name         string
+		keystorePath string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *ecdsa.PublicKey
+		want1   []byte
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1, err := KGCGetECPublicKey(tt.args.priv, tt.args.name, tt.args.keystorePath)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("KGCGetECPublicKey() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("KGCGetECPublicKey() got = %v, want %v", got, tt.want)
+			}
+			if !reflect.DeepEqual(got1, tt.want1) {
+				t.Errorf("KGCGetECPublicKey() got1 = %v, want %v", got1, tt.want1)
+			}
+		})
+	}
+}
+
+func TestGenFinalKeyPair(t *testing.T) {
+	type args struct {
+		keystorePath      string
+		name              string
+		ClientPrivateKey  *ecdsa.PrivateKey
+		PartialPrivateKey []byte
+		PartialPublicKey  []byte
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := GenFinalKeyPair(tt.args.keystorePath, tt.args.name, tt.args.ClientPrivateKey, tt.args.PartialPrivateKey, tt.args.PartialPublicKey); (err != nil) != tt.wantErr {
+				t.Errorf("GenFinalKeyPair() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestGenFinalKeyPairInternal(t *testing.T) {
+	type args struct {
+		ID                string
+		ClientPrivateKey  *ecdsa.PrivateKey
+		PartialPrivateKey []byte
+		PartialPublicKey  []byte
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *big.Int
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := GenFinalKeyPairInternal(tt.args.ID, tt.args.ClientPrivateKey, tt.args.PartialPrivateKey, tt.args.PartialPublicKey)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GenFinalKeyPairInternal() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GenFinalKeyPairInternal() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_storePrivateKey(t *testing.T) {
+	type args struct {
+		keystorePath    string
+		finalPrivateKey *ecdsa.PrivateKey
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := storePrivateKey(tt.args.keystorePath, tt.args.finalPrivateKey); (err != nil) != tt.wantErr {
+				t.Errorf("storePrivateKey() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestPrivateKeyToPEM(t *testing.T) {
+	type args struct {
+		k *ecdsa.PrivateKey
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    []byte
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := PrivateKeyToPEM(tt.args.k)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("PrivateKeyToPEM() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("PrivateKeyToPEM() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_oidFromNamedCurve(t *testing.T) {
+	type args struct {
+		curve elliptic.Curve
+	}
+	tests := []struct {
+		name  string
+		args  args
+		want  asn1.ObjectIdentifier
+		want1 bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1 := oidFromNamedCurve(tt.args.curve)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("oidFromNamedCurve() got = %v, want %v", got, tt.want)
+			}
+			if got1 != tt.want1 {
+				t.Errorf("oidFromNamedCurve() got1 = %v, want %v", got1, tt.want1)
+			}
+		})
+	}
 }

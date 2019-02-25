@@ -159,6 +159,8 @@ func GetLocalMspConfigWithType(dir string, bccspConfig *factory.FactoryOpts, ID,
 		return GetLocalMspConfig(dir, bccspConfig, ID)
 	case ProviderTypeToString(IDEMIX):
 		return GetIdemixMspConfig(dir, ID)
+	case ProviderTypeToString(IBPCLA):
+		return GetLocalCLMspConfig(dir, bccspConfig, ID)
 	default:
 		return nil, errors.Errorf("unknown MSP type '%s'", mspType)
 	}
@@ -190,6 +192,26 @@ func GetLocalMspConfig(dir string, bccspConfig *factory.FactoryOpts, ID string) 
 	return getMspConfig(dir, ID, sigid)
 }
 
+func GetLocalCLMspConfig(dir string, bccspConfig *factory.FactoryOpts, ID string) (*msp.MSPConfig, error) {
+	signcertDir := filepath.Join(dir, signcerts)
+	keystoreDir := filepath.Join(dir, keystore)
+	bccspConfig = SetupBCCSPKeystoreConfig(bccspConfig, keystoreDir)
+
+	err := factory.InitFactories(bccspConfig)
+	if err != nil {
+		return nil, errors.WithMessage(err, "could not initialize BCCSP Factories")
+	}
+
+	PA, err := getPemMaterialFromDir(signcertDir)
+	if err != nil || len(signcert) == 0 {
+		return nil, errors.Wrapf(err, "could not load a valid signer certificate from directory %s", signcertDir)
+	}
+
+	sigid := &msp.SigningIdentityInfo{PublicSigner: PA[0], PrivateSigner: nil}
+
+	return GetCLMspConfig(dir, ID, sigid)
+}
+
 // GetVerifyingMspConfig returns an MSP config given directory, ID and type
 func GetVerifyingMspConfig(dir, ID, mspType string) (*msp.MSPConfig, error) {
 	switch mspType {
@@ -197,6 +219,8 @@ func GetVerifyingMspConfig(dir, ID, mspType string) (*msp.MSPConfig, error) {
 		return getMspConfig(dir, ID, nil)
 	case ProviderTypeToString(IDEMIX):
 		return GetIdemixMspConfig(dir, ID)
+	case ProviderTypeToString(IBPCLA):
+		return GetCLMspConfig(dir, ID, nil)
 	default:
 		return nil, errors.Errorf("unknown MSP type '%s'", mspType)
 	}
@@ -399,4 +423,85 @@ func GetIdemixMspConfig(dir string, ID string) (*msp.MSPConfig, error) {
 	}
 
 	return &msp.MSPConfig{Config: confBytes, Type: int32(IDEMIX)}, nil
+}
+
+const (
+	CLKGCPubs = "kgcpubs"
+)
+
+func GetCLMspConfig(dir string, ID string, sigid *msp.SigningIdentityInfo) (*msp.MSPConfig, error) {
+	KGCPubDir := filepath.Join(dir, CLKGCPubs)
+	admincertDir := filepath.Join(dir, admincerts)
+	intermediatecertsDir := filepath.Join(dir, intermediatecerts)
+	crlsDir := filepath.Join(dir, crlsfolder)
+	//configFile := filepath.Join(dir, configfilename)
+	tlscacertDir := filepath.Join(dir, tlscacerts)
+	tlsintermediatecertsDir := filepath.Join(dir, tlsintermediatecerts)
+
+	kgcpubs, err := getPemMaterialFromDir(KGCPubDir)
+	if err != nil || len(kgcpubs) == 0 {
+		return nil, errors.WithMessage(err, fmt.Sprintf("could not load a valid kgc pubkeys from directory %s", KGCPubDir))
+	}
+
+	admincert, err := getPemMaterialFromDir(admincertDir)
+	if err != nil || len(admincert) == 0 {
+		return nil, errors.WithMessage(err, fmt.Sprintf("could not load a valid admin certificate from directory %s", admincertDir))
+	}
+
+	intermediatepubs, err := getPemMaterialFromDir(intermediatecertsDir)
+	if os.IsNotExist(err) {
+		mspLogger.Debugf("Intermediate certs folder not found at [%s]. Skipping. [%s]", intermediatecertsDir, err)
+	} else if err != nil {
+		return nil, errors.WithMessage(err, fmt.Sprintf("failed loading intermediate ca certs at [%s]", intermediatecertsDir))
+	}
+
+	tlsCACerts, err := getPemMaterialFromDir(tlscacertDir)
+	tlsIntermediateCerts := [][]byte{}
+	if os.IsNotExist(err) {
+		mspLogger.Debugf("TLS CA certs folder not found at [%s]. Skipping and ignoring TLS intermediate CA folder. [%s]", tlsintermediatecertsDir, err)
+	} else if err != nil {
+		return nil, errors.WithMessage(err, fmt.Sprintf("failed loading TLS ca certs at [%s]", tlsintermediatecertsDir))
+	} else if len(tlsCACerts) != 0 {
+		tlsIntermediateCerts, err = getPemMaterialFromDir(tlsintermediatecertsDir)
+		if os.IsNotExist(err) {
+			mspLogger.Debugf("TLS intermediate certs folder not found at [%s]. Skipping. [%s]", tlsintermediatecertsDir, err)
+		} else if err != nil {
+			return nil, errors.WithMessage(err, fmt.Sprintf("failed loading TLS intermediate ca certs at [%s]", tlsintermediatecertsDir))
+		}
+	} else {
+		mspLogger.Debugf("TLS CA certs folder at [%s] is empty. Skipping.", tlsintermediatecertsDir)
+	}
+
+	crls, err := getPemMaterialFromDir(crlsDir)
+	if os.IsNotExist(err) {
+		mspLogger.Debugf("crls folder not found at [%s]. Skipping. [%s]", crlsDir, err)
+	} else if err != nil {
+		return nil, errors.WithMessage(err, fmt.Sprintf("failed loading crls at [%s]", crlsDir))
+	}
+
+	// Set FabricCryptoConfig
+	cryptoConfig := &msp.FabricCryptoConfig{
+		SignatureHashFamily:            bccsp.SHA2,
+		IdentityIdentifierHashFunction: bccsp.SHA256,
+	}
+
+	// Compose CLMSPConfig
+	fmspconf := &msp.CLMSPConfig{
+		Admins:                        admincert,
+		KGCPubs:                       kgcpubs,
+		IntermediateCerts:             intermediatepubs,
+		CLSigningIdentity:             sigid,
+		Name:                          ID,
+		OrganizationalUnitIdentifiers: nil,
+		RevocationList:                crls,
+		CryptoConfig:                  cryptoConfig,
+		TlsRootCerts:                  tlsCACerts,
+		TlsIntermediateCerts:          tlsIntermediateCerts,
+	}
+
+	fmpsjs, _ := proto.Marshal(fmspconf)
+
+	mspconf := &msp.MSPConfig{Config: fmpsjs, Type: int32(IBPCLA)}
+
+	return mspconf, nil
 }

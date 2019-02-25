@@ -11,7 +11,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/pem"
 	"io/ioutil"
 	"math/big"
@@ -19,7 +18,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hyperledger/fabric/bccsp/utils"
 	"github.com/hyperledger/fabric/common/tools/clgen/csp"
 )
 
@@ -42,21 +40,23 @@ func NewKGC(baseDir, org, name string) (*KGC, error) {
 
 	var response error
 	var kgc *KGC
-
 	err := os.MkdirAll(baseDir, 0755)
 	if err == nil {
-		priv, err := csp.KGCGeneratePrivateKey(baseDir)
+		bpriv, err := csp.KGCGeneratePrivateKey(baseDir)
 		response = err
 		if err == nil {
-			PubKey, raw, err := csp.KGCGetECPublicKey(priv, name, baseDir)
+			PubKey, raw, err := csp.KGCGetECPublicKey(bpriv, name, baseDir)
 			response = err
 			if err == nil {
-				kgc = &KGC{
-					Name:         name,
-					MasterKey:    priv,
-					MasterPub:    PubKey,
-					RawPub:       raw,
-					Organization: org,
+				priv, err := csp.LoadCLPrivateKey(baseDir, bpriv.SKI())
+				if err == nil {
+					kgc = &KGC{
+						Name:         name,
+						MasterKey:    priv,
+						MasterPub:    PubKey,
+						RawPub:       raw,
+						Organization: org,
+					}
 				}
 			}
 		}
@@ -69,7 +69,13 @@ func NewKGC(baseDir, org, name string) (*KGC, error) {
 func (kgc *KGC) KGCGenPartialKey(baseDir, ID string, XA *ecdsa.PublicKey, s *ecdsa.PrivateKey) (*PartialKey, error) {
 
 	var partialkey *PartialKey
-	partialkey.PartialPublickKey, partialkey.PartialPrivateKey, err = KGCGenPartialKeyInternal(ID, XA, s)
+	pa, za, err := KGCGenPartialKeyInternal(ID, XA, s)
+	if err == nil {
+		partialkey = &PartialKey{
+			PartialPublickKey: pa,
+			PartialPrivateKey: za,
+		}
+	}
 
 	if err != nil {
 		return nil, err
@@ -82,11 +88,20 @@ func (kgc *KGC) KGCGenPartialKey(baseDir, ID string, XA *ecdsa.PublicKey, s *ecd
 		return nil, err
 	}
 	//pem encode the public key
-	err = pem.Encode(PAFile, &pem.Block{Type: "ECC PUBLIC KEY", Bytes: partialkey.PartialPublickKey.Bytes()})
+	err = pem.Encode(PAFile, &pem.Block{Type: "PUBLIC KEY", Bytes: partialkey.PartialPublickKey.Bytes()})
 	PAFile.Close()
 	if err != nil {
 		return nil, err
 	}
+
+	//to load PA
+	/*
+		rawPubKey, err := ioutil.ReadFile(fileName)
+		block, _ := pem.Decode(rawPubKey)
+		fmt.Println("PA:" + hex.EncodeToString(block.Bytes))
+		PAx := new(big.Int).SetBytes(block.Bytes[0:15])
+		PAy := new(big.Int).SetBytes(block.Bytes[16:32])
+	*/
 
 	return partialkey, nil
 }
@@ -107,12 +122,12 @@ func KGCGenPartialKeyInternal(ID string, XA *ecdsa.PublicKey, s *ecdsa.PrivateKe
 	//PA = XA + y*G
 	//here we use x coordinate only
 	PA := new(big.Int).Add(y.PublicKey.X, XA.X)
-	PA.mod(PA, n)
+	PA.Mod(PA, n)
 
 	//e = hash(ID||PA)
 	buffer.Write([]byte(ID))
 	buffer.Write(PA.Bytes())
-	e := sha256.Sum256(buffer)
+	e := sha256.Sum256(buffer.Bytes())
 
 	//e0=e[0:15], e1=e[16:32]
 
@@ -121,100 +136,39 @@ func KGCGenPartialKeyInternal(ID string, XA *ecdsa.PublicKey, s *ecdsa.PrivateKe
 
 	//za = e0y + e1s
 	e0.Mul(y.D, e0)
-	e0.mod(e0, n)
+	e0.Mod(e0, n)
 	e1.Mul(s.D, e1)
-	e1.mod(e1, n)
-	za := new(big.Int).add(e0, e1)
-	za.mod(za, n)
+	e1.Mod(e1, n)
+	za := new(big.Int).Add(e0, e1)
+	za.Mod(za, n)
 
 	return PA, za, nil
 }
 
-// default template for X509 subject
-func subjectTemplate() pkix.Name {
-	return pkix.Name{
-		Country:  []string{"US"},
-		Locality: []string{"San Francisco"},
-		Province: []string{"California"},
-	}
-}
-
-// Additional for X509 subject
-func subjectTemplateAdditional(country, province, locality, orgUnit, streetAddress, postalCode string) pkix.Name {
-	name := subjectTemplate()
-	if len(country) >= 1 {
-		name.Country = []string{country}
-	}
-	if len(province) >= 1 {
-		name.Province = []string{province}
-	}
-
-	if len(locality) >= 1 {
-		name.Locality = []string{locality}
-	}
-	if len(orgUnit) >= 1 {
-		name.OrganizationalUnit = []string{orgUnit}
-	}
-	if len(streetAddress) >= 1 {
-		name.StreetAddress = []string{streetAddress}
-	}
-	if len(postalCode) >= 1 {
-		name.PostalCode = []string{postalCode}
-	}
-	return name
-}
-
-// generate a signed X509 certificate using ECDSA
-func genCertificateECDSA(baseDir, name string, template, parent *x509.Certificate, pub *ecdsa.PublicKey,
-	priv interface{}) (*x509.Certificate, error) {
-
-	//create the x509 public cert
-	certBytes, err := x509.CreateCertificate(rand.Reader, template, parent, pub, priv)
-	if err != nil {
-		return nil, err
-	}
-
-	//write cert out to file
-	fileName := filepath.Join(baseDir, name+"-cert.pem")
-	certFile, err := os.Create(fileName)
-	if err != nil {
-		return nil, err
-	}
-	//pem encode the cert
-	err = pem.Encode(certFile, &pem.Block{Type: "CERTIFICATE", Bytes: certBytes})
-	certFile.Close()
-	if err != nil {
-		return nil, err
-	}
-
-	x509Cert, err := x509.ParseCertificate(certBytes)
-	if err != nil {
-		return nil, err
-	}
-	return x509Cert, nil
-}
-
 // LoadCertificateECDSA load a ecdsa cert from a file in cert path
-func LoadCertificateECDSA(certPath string) (*x509.Certificate, error) {
-	var cert *x509.Certificate
+func LoadKGCPublicKey(certPath string) (*ecdsa.PublicKey, []byte, error) {
+	var Pub *ecdsa.PublicKey
+	var raw []byte
 	var err error
 
 	walkFunc := func(path string, info os.FileInfo, err error) error {
 		if strings.HasSuffix(path, ".pem") {
-			rawCert, err := ioutil.ReadFile(path)
+			rawPubKey, err := ioutil.ReadFile(path)
 			if err != nil {
 				return err
 			}
-			block, _ := pem.Decode(rawCert)
-			cert, err = utils.DERToX509Certificate(block.Bytes)
+			block, _ := pem.Decode(rawPubKey)
+			ecPubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+			Pub = ecPubKey.(*ecdsa.PublicKey)
+			raw = block.Bytes
 		}
 		return nil
 	}
 
 	err = filepath.Walk(certPath, walkFunc)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return cert, err
+	return Pub, raw, err
 }
