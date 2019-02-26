@@ -1,31 +1,7 @@
-// Copyright (C) 2018 The ontology Authors
-// This file is part of The ontology library.
-//
-// The ontology is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The ontology is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with The ontology.  If not, see <http://www.gnu.org/licenses/>.
+//Copyright (C) Lenovo Corp. All Rights Reserved.
 
-// Copyright 2015 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+//SPDX-License-Identifier: Apache-2.0
 
-// This file contains the Go wrapper for the constant-time, 64-bit assembly
-// implementation of P256. The optimizations performed here are described in
-// detail in:
-// S.Gueron and V.Krasnov, "Fast prime field elliptic-curve cryptography with
-//                          256-bit primes"
-// http://link.springer.com/article/10.1007%2Fs13389-014-0090-x
-// https://eprint.iacr.org/2013/816.pdf
-// modify for sm2. Zhang Wei <d5c5ceb0@gmail.com>
 
 // +build amd64
 

@@ -1,8 +1,10 @@
-// Copyright 2011 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+/*
+ * Copyright (C) Lenovo Corp. All Rights Reserved.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-// Package sm2 implements china crypto standards.
+
 package sm2
 
 import (
@@ -12,7 +14,13 @@ import (
 	"errors"
 	"io"
 	"math/big"
+	"github.com/lenovo/crypto/sm/sm3"
 )
+
+// combinedMult implements fast multiplication S1*g + S2*p (g - generator, p - arbitrary point)
+type combinedMult interface {
+	CombinedMult(bigX, bigY *big.Int, baseScalar, scalar []byte) (x, y *big.Int)
+}
 
 type PublicKey struct {
 	elliptic.Curve
@@ -143,13 +151,54 @@ func Verify(pub *PublicKey, hash []byte, r, s *big.Int) bool {
 	n := pub.Curve.Params().N
 	e := new(big.Int).SetBytes(hash)
 	t := new(big.Int).Add(r, s)
-	x11, y11 := pub.Curve.ScalarMult(pub.X, pub.Y, t.Bytes())
-	x12, y12 := pub.Curve.ScalarBaseMult(s.Bytes())
-	x1, _ := pub.Curve.Add(x11, y11, x12, y12)
+	x1, _ := pub.Curve.(combinedMult).CombinedMult(pub.X, pub.Y, s.Bytes(), t.Bytes())
 	x := new(big.Int).Add(e, x1)
 	x = x.Mod(x, n)
 
 	return x.Cmp(r) == 0
+}
+
+// ZA = H256(ENTLA || IDA || a || b || xG || yG || xA || yA)
+func ZA(pub *PublicKey, uid []byte) ([]byte, error) {
+        if len(uid) <= 0 {
+                uid = []byte{0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38}
+        }
+        za := sm3.New()
+        uidLen := len(uid)
+        if uidLen >= 8192 {
+                return []byte{}, errors.New("SM2: uid too large")
+        }
+        Entla := uint16(8 * uidLen)
+        za.Write([]byte{byte((Entla >> 8) & 0xFF)})
+        za.Write([]byte{byte(Entla & 0xFF)})
+        za.Write(uid)
+        za.Write(p256.a)
+        za.Write(p256.B.Bytes())
+        za.Write(p256.Gx.Bytes())
+        za.Write(p256.Gy.Bytes())
+
+        xBuf := pub.X.Bytes()
+        yBuf := pub.Y.Bytes()
+        if n := len(xBuf); n < 32 {
+                xBuf = append(zeroByteSlice()[:32-n], xBuf...)
+        }
+        za.Write(xBuf)
+        za.Write(yBuf)
+        return za.Sum(nil)[:32], nil
+}
+
+// 32byte
+func zeroByteSlice() []byte {
+        return []byte{
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+        }
 }
 
 type zr struct {

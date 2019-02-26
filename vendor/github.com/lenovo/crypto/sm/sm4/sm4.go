@@ -1,10 +1,9 @@
 /*
-// Copyright 2017 cetc-30. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+ * Copyright (C) Lenovo Corp. All Rights Reserved.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-// Package china crypto algorithm implements the sm2, sm3, sm4 algorithms
-*/
 package sm4
 
 import (

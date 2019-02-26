@@ -1,12 +1,15 @@
-// Copyright 2009 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+/*
+ * Copyright (C) Lenovo Corp. All Rights Reserved.
+ *
+ * Package x509 parses X.509-encoded keys and certificates.
+ *
+ * On UNIX systems the environment variables SSL_CERT_FILE and SSL_CERT_DIR
+ * can be used to override the system default locations for the SSL certificate
+ * file and SSL certificate files directory, respectively.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-// Package x509 parses X.509-encoded keys and certificates.
-//
-// On UNIX systems the environment variables SSL_CERT_FILE and SSL_CERT_DIR
-// can be used to override the system default locations for the SSL certificate
-// file and SSL certificate files directory, respectively.
 package x509
 
 import (

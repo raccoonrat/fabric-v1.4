@@ -1,4 +1,10 @@
 /*
+ * Copyright (C) Lenovo Corp. All Rights Reserved.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
  * Copyright (C) 2018 The ontology Authors
  * This file is part of The ontology library.
  *

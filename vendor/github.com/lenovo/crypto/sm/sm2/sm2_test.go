@@ -1,14 +1,25 @@
-// Copyright 2011 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+/*
+ * Copyright (C) Lenovo Corp. All Rights Reserved.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-// Package sm2 implements china crypto standards.
 package sm2
 
 import (
+	"bufio"
+        "compress/bzip2"
 	"crypto/rand"
-	"crypto/sha256"
+	"crypto/sha1"
+        "crypto/sha256"
+        "crypto/sha512"
+	"encoding/hex"
 	"math/big"
+	"hash"
+        "io"
+        "os"
+        "strings"
+
 	"fmt"
 	"testing"
 	"github.com/lenovo/crypto/sm/sm3"
@@ -215,6 +226,83 @@ func testINDCCA(t *testing.T, tag string) {
         }
 }
 
+func TestBaseZA(t *testing.T) {
+
+        msg := []byte{1, 2, 3, 4}
+        uid := []byte{1, 1, 1, 1}
+
+        priv, err := GenerateKey(rand.Reader)
+        if err != nil {
+                panic("GenerateKey failed")
+        }
+        fmt.Printf("D:%s\n", priv.D.Text(16))
+        fmt.Printf("X:%s\n", priv.X.Text(16))
+        fmt.Printf("Y:%s\n", priv.Y.Text(16))
+
+        za, err := ZA(&priv.PublicKey, uid)
+        if err != nil {
+                panic("gen ZA failed")
+        }
+
+        hfunc := sm3.New()
+        hfunc.Write(za)
+        hfunc.Write(msg)
+        hash := hfunc.Sum(nil)
+        fmt.Printf("hash:%02X\n", hash)
+
+        r, s, err := Sign(rand.Reader, priv, hash)
+        if err != nil {
+                panic(err)
+        }
+
+        fmt.Printf("R:%s\n", r.Text(16))
+        fmt.Printf("S:%s\n", s.Text(16))
+
+        ret := Verify(&priv.PublicKey, hash, r, s)
+        fmt.Println(ret)
+}
+
+func BenchmarkSignZA(b *testing.B) {
+        b.ResetTimer()
+        origin := []byte("testing")
+        uid := []byte("Alice")
+        priv, _ := GenerateKey(rand.Reader)
+        b.ReportAllocs()
+        b.ResetTimer()
+        for i := 0; i < b.N; i++ {
+                za, _ := ZA(&priv.PublicKey, uid)
+                hfunc := sm3.New()
+                hfunc.Write(za)
+                hfunc.Write(origin)
+                hashed := hfunc.Sum(nil)
+                _, _, _ = Sign(rand.Reader, priv, hashed[:])
+        }
+}
+
+func BenchmarkVerifyP256ZA(b *testing.B) {
+        b.ResetTimer()
+        origin := []byte("testing")
+        uid := []byte("Alice")
+        priv, _ := GenerateKey(rand.Reader)
+        zai, _ := ZA(&priv.PublicKey, uid)
+        hash := sm3.New()
+        hash.Write(zai)
+        hash.Write(origin)
+        hashedi := hash.Sum(nil)
+        r, s, _ := Sign(rand.Reader, priv, hashedi)
+
+        b.ReportAllocs()
+        b.ResetTimer()
+        for i := 0; i < b.N; i++ {
+                za, _ := ZA(&priv.PublicKey, uid)
+                hash := sm3.New()
+                hash.Write(za)
+                hash.Write(origin)
+                hashed := hash.Sum(nil)
+                Verify(&priv.PublicKey, hashed, r, s)
+        }
+}
+
 func TestINDCCA(t *testing.T) {
         testINDCCA(t, "sm2p256")
 }
@@ -226,7 +314,6 @@ func fromHex(s string) *big.Int {
         }
         return r
 }
-/*
 
 func TestVectors(t *testing.T) {
 	// This test runs the full set of NIST test vectors from
@@ -277,14 +364,8 @@ func TestVectors(t *testing.T) {
 			parts := strings.SplitN(line, ",", 2)
 
 			switch parts[0] {
-			case "P-224":
-				pub.Curve = elliptic.P224()
 			case "P-256":
-				pub.Curve = elliptic.P256()
-			case "P-384":
-				pub.Curve = elliptic.P384()
-			case "P-521":
-				pub.Curve = elliptic.P521()
+				pub.Curve = SM2P256V1()
 			default:
 				pub.Curve = nil
 			}
@@ -337,4 +418,4 @@ func TestVectors(t *testing.T) {
 		}
 	}
 }
-*/
+

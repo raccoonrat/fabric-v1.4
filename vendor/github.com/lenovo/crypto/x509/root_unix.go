@@ -1,7 +1,8 @@
-// Copyright 2011 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+/*
+Copyright IBM Corp. All Rights Reserved.
 
+SPDX-License-Identifier: Apache-2.0
+*/
 // +build dragonfly freebsd linux nacl netbsd openbsd solaris
 
 package x509
