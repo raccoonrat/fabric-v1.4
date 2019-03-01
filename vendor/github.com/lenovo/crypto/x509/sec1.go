@@ -9,10 +9,10 @@ package x509
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	sm "github.com/lenovo/crypto/sm/sm2"
 	"encoding/asn1"
 	"errors"
 	"fmt"
+	sm "github.com/lenovo/crypto/sm/sm2"
 	"math/big"
 )
 

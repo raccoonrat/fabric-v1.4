@@ -2,7 +2,6 @@
 
 //SPDX-License-Identifier: Apache-2.0
 
-
 // +build amd64
 
 package sm2

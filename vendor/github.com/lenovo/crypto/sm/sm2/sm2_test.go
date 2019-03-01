@@ -8,21 +8,21 @@ package sm2
 
 import (
 	"bufio"
-        "compress/bzip2"
+	"compress/bzip2"
 	"crypto/rand"
 	"crypto/sha1"
-        "crypto/sha256"
-        "crypto/sha512"
+	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/hex"
-	"math/big"
 	"hash"
-        "io"
-        "os"
-        "strings"
+	"io"
+	"math/big"
+	"os"
+	"strings"
 
 	"fmt"
-	"testing"
 	"github.com/lenovo/crypto/sm/sm3"
+	"testing"
 )
 
 func TestSignVerify(t *testing.T) {
@@ -46,14 +46,14 @@ func TestSignVerify(t *testing.T) {
 }
 
 func TestBase(t *testing.T) {
-	msg := []byte{1,2,3,4}
+	msg := []byte{1, 2, 3, 4}
 	priv, err := GenerateKey(rand.Reader)
 	if err != nil {
 		panic("GenerateKey failed")
 	}
-	fmt.Printf("D:%s\n" , priv.D.Text(16))
-	fmt.Printf("X:%s\n" , priv.X.Text(16))
-	fmt.Printf("Y:%s\n" , priv.Y.Text(16))
+	fmt.Printf("D:%s\n", priv.D.Text(16))
+	fmt.Printf("X:%s\n", priv.X.Text(16))
+	fmt.Printf("Y:%s\n", priv.Y.Text(16))
 
 	hfunc := sm3.New()
 	hfunc.Write(msg)
@@ -65,36 +65,35 @@ func TestBase(t *testing.T) {
 		panic(err)
 	}
 
-	fmt.Printf("R:%s\n" , r.Text(16))
-	fmt.Printf("S:%s\n" , s.Text(16))
-
+	fmt.Printf("R:%s\n", r.Text(16))
+	fmt.Printf("S:%s\n", s.Text(16))
 
 	ret := Verify(&priv.PublicKey, hash, r, s)
 	fmt.Println(ret)
 }
 
 func testKeyGeneration(t *testing.T, tag string) {
-        priv, err := GenerateKey(rand.Reader)
-        if err != nil {
-                t.Errorf("%s: error: %s", tag, err)
-                return
-        }
-        if !priv.PublicKey.Curve.IsOnCurve(priv.PublicKey.X, priv.PublicKey.Y) {
-                t.Errorf("%s: public key invalid: %s", tag, err)
-        }
+	priv, err := GenerateKey(rand.Reader)
+	if err != nil {
+		t.Errorf("%s: error: %s", tag, err)
+		return
+	}
+	if !priv.PublicKey.Curve.IsOnCurve(priv.PublicKey.X, priv.PublicKey.Y) {
+		t.Errorf("%s: public key invalid: %s", tag, err)
+	}
 }
 
 func TestKeyGeneration(t *testing.T) {
 	testKeyGeneration(t, "sm2p256")
-        if testing.Short() {
-                return
-        }
+	if testing.Short() {
+		return
+	}
 }
 
 func BenchmarkSign(b *testing.B) {
 	b.ResetTimer()
 	origin := []byte("testing")
-	hashed  := sm3.SumSM3(origin)
+	hashed := sm3.SumSM3(origin)
 	priv, _ := GenerateKey(rand.Reader)
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -104,19 +103,19 @@ func BenchmarkSign(b *testing.B) {
 }
 
 func BenchmarkVerifyP256(b *testing.B) {
-        b.ResetTimer()
+	b.ResetTimer()
 	origin := []byte("testing")
 	hash := sm3.New()
 	hash.Write(origin)
 	hashed := hash.Sum(nil)
-        priv, _ := GenerateKey(rand.Reader)
-        r, s, _ := Sign(rand.Reader, priv, hashed)
+	priv, _ := GenerateKey(rand.Reader)
+	r, s, _ := Sign(rand.Reader, priv, hashed)
 
 	b.ReportAllocs()
-        b.ResetTimer()
-        for i := 0; i < b.N; i++ {
-                Verify(&priv.PublicKey, hashed, r, s)
-        }
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		Verify(&priv.PublicKey, hashed, r, s)
+	}
 }
 
 func BenchmarkSignAndVerify(b *testing.B) {
@@ -162,157 +161,157 @@ func TestSignAndVerify(t *testing.T) {
 }
 
 func testNonceSafety(t *testing.T, tag string) {
-        priv, _ := GenerateKey(rand.Reader)
+	priv, _ := GenerateKey(rand.Reader)
 
-        origin := []byte("testing")
+	origin := []byte("testing")
 	hash := sm3.New()
 	hash.Write(origin)
 	hashed := hash.Sum(nil)
-        r0, s0, err := Sign(zeroReader, priv, hashed)
-        if err != nil {
-                t.Errorf("%s: error signing: %s", tag, err)
-                return
-        }
+	r0, s0, err := Sign(zeroReader, priv, hashed)
+	if err != nil {
+		t.Errorf("%s: error signing: %s", tag, err)
+		return
+	}
 
-        origin = []byte("testing...")
+	origin = []byte("testing...")
 	hash = sm3.New()
 	hash.Write(origin)
 	hashed = hash.Sum(nil)
-        r1, s1, err := Sign(zeroReader, priv, hashed)
-        if err != nil {
-                t.Errorf("%s: error signing: %s", tag, err)
-                return
-        }
+	r1, s1, err := Sign(zeroReader, priv, hashed)
+	if err != nil {
+		t.Errorf("%s: error signing: %s", tag, err)
+		return
+	}
 
-        if s0.Cmp(s1) == 0 {
-                // This should never happen.
-                t.Errorf("%s: the signatures on two different messages were the same", tag)
-        }
+	if s0.Cmp(s1) == 0 {
+		// This should never happen.
+		t.Errorf("%s: the signatures on two different messages were the same", tag)
+	}
 
-        if r0.Cmp(r1) == 0 {
-                t.Errorf("%s: the nonce used for two diferent messages was the same", tag)
-        }
+	if r0.Cmp(r1) == 0 {
+		t.Errorf("%s: the nonce used for two diferent messages was the same", tag)
+	}
 }
 
 func TestNonceSafety(t *testing.T) {
-        testNonceSafety(t, "sm2p256")
+	testNonceSafety(t, "sm2p256")
 }
 
 func testINDCCA(t *testing.T, tag string) {
-        priv, _ := GenerateKey(rand.Reader)
+	priv, _ := GenerateKey(rand.Reader)
 
-        origin := []byte("testing")
+	origin := []byte("testing")
 	hash := sm3.New()
 	hash.Write(origin)
 	hashed := hash.Sum(nil)
-        r0, s0, err := Sign(rand.Reader, priv, hashed)
-        if err != nil {
-                t.Errorf("%s: error signing: %s", tag, err)
-                return
-        }
+	r0, s0, err := Sign(rand.Reader, priv, hashed)
+	if err != nil {
+		t.Errorf("%s: error signing: %s", tag, err)
+		return
+	}
 
-        r1, s1, err := Sign(rand.Reader, priv, hashed)
-        if err != nil {
-                t.Errorf("%s: error signing: %s", tag, err)
-                return
-        }
+	r1, s1, err := Sign(rand.Reader, priv, hashed)
+	if err != nil {
+		t.Errorf("%s: error signing: %s", tag, err)
+		return
+	}
 
-        if s0.Cmp(s1) == 0 {
-                t.Errorf("%s: two signatures of the same message produced the same result", tag)
-        }
+	if s0.Cmp(s1) == 0 {
+		t.Errorf("%s: two signatures of the same message produced the same result", tag)
+	}
 
-        if r0.Cmp(r1) == 0 {
-                t.Errorf("%s: two signatures of the same message produced the same nonce", tag)
-        }
+	if r0.Cmp(r1) == 0 {
+		t.Errorf("%s: two signatures of the same message produced the same nonce", tag)
+	}
 }
 
 func TestBaseZA(t *testing.T) {
 
-        msg := []byte{1, 2, 3, 4}
-        uid := []byte{1, 1, 1, 1}
+	msg := []byte{1, 2, 3, 4}
+	uid := []byte{1, 1, 1, 1}
 
-        priv, err := GenerateKey(rand.Reader)
-        if err != nil {
-                panic("GenerateKey failed")
-        }
-        fmt.Printf("D:%s\n", priv.D.Text(16))
-        fmt.Printf("X:%s\n", priv.X.Text(16))
-        fmt.Printf("Y:%s\n", priv.Y.Text(16))
+	priv, err := GenerateKey(rand.Reader)
+	if err != nil {
+		panic("GenerateKey failed")
+	}
+	fmt.Printf("D:%s\n", priv.D.Text(16))
+	fmt.Printf("X:%s\n", priv.X.Text(16))
+	fmt.Printf("Y:%s\n", priv.Y.Text(16))
 
-        za, err := ZA(&priv.PublicKey, uid)
-        if err != nil {
-                panic("gen ZA failed")
-        }
+	za, err := ZA(&priv.PublicKey, uid)
+	if err != nil {
+		panic("gen ZA failed")
+	}
 
-        hfunc := sm3.New()
-        hfunc.Write(za)
-        hfunc.Write(msg)
-        hash := hfunc.Sum(nil)
-        fmt.Printf("hash:%02X\n", hash)
+	hfunc := sm3.New()
+	hfunc.Write(za)
+	hfunc.Write(msg)
+	hash := hfunc.Sum(nil)
+	fmt.Printf("hash:%02X\n", hash)
 
-        r, s, err := Sign(rand.Reader, priv, hash)
-        if err != nil {
-                panic(err)
-        }
+	r, s, err := Sign(rand.Reader, priv, hash)
+	if err != nil {
+		panic(err)
+	}
 
-        fmt.Printf("R:%s\n", r.Text(16))
-        fmt.Printf("S:%s\n", s.Text(16))
+	fmt.Printf("R:%s\n", r.Text(16))
+	fmt.Printf("S:%s\n", s.Text(16))
 
-        ret := Verify(&priv.PublicKey, hash, r, s)
-        fmt.Println(ret)
+	ret := Verify(&priv.PublicKey, hash, r, s)
+	fmt.Println(ret)
 }
 
 func BenchmarkSignZA(b *testing.B) {
-        b.ResetTimer()
-        origin := []byte("testing")
-        uid := []byte("Alice")
-        priv, _ := GenerateKey(rand.Reader)
-        b.ReportAllocs()
-        b.ResetTimer()
-        for i := 0; i < b.N; i++ {
-                za, _ := ZA(&priv.PublicKey, uid)
-                hfunc := sm3.New()
-                hfunc.Write(za)
-                hfunc.Write(origin)
-                hashed := hfunc.Sum(nil)
-                _, _, _ = Sign(rand.Reader, priv, hashed[:])
-        }
+	b.ResetTimer()
+	origin := []byte("testing")
+	uid := []byte("Alice")
+	priv, _ := GenerateKey(rand.Reader)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		za, _ := ZA(&priv.PublicKey, uid)
+		hfunc := sm3.New()
+		hfunc.Write(za)
+		hfunc.Write(origin)
+		hashed := hfunc.Sum(nil)
+		_, _, _ = Sign(rand.Reader, priv, hashed[:])
+	}
 }
 
 func BenchmarkVerifyP256ZA(b *testing.B) {
-        b.ResetTimer()
-        origin := []byte("testing")
-        uid := []byte("Alice")
-        priv, _ := GenerateKey(rand.Reader)
-        zai, _ := ZA(&priv.PublicKey, uid)
-        hash := sm3.New()
-        hash.Write(zai)
-        hash.Write(origin)
-        hashedi := hash.Sum(nil)
-        r, s, _ := Sign(rand.Reader, priv, hashedi)
+	b.ResetTimer()
+	origin := []byte("testing")
+	uid := []byte("Alice")
+	priv, _ := GenerateKey(rand.Reader)
+	zai, _ := ZA(&priv.PublicKey, uid)
+	hash := sm3.New()
+	hash.Write(zai)
+	hash.Write(origin)
+	hashedi := hash.Sum(nil)
+	r, s, _ := Sign(rand.Reader, priv, hashedi)
 
-        b.ReportAllocs()
-        b.ResetTimer()
-        for i := 0; i < b.N; i++ {
-                za, _ := ZA(&priv.PublicKey, uid)
-                hash := sm3.New()
-                hash.Write(za)
-                hash.Write(origin)
-                hashed := hash.Sum(nil)
-                Verify(&priv.PublicKey, hashed, r, s)
-        }
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		za, _ := ZA(&priv.PublicKey, uid)
+		hash := sm3.New()
+		hash.Write(za)
+		hash.Write(origin)
+		hashed := hash.Sum(nil)
+		Verify(&priv.PublicKey, hashed, r, s)
+	}
 }
 
 func TestINDCCA(t *testing.T) {
-        testINDCCA(t, "sm2p256")
+	testINDCCA(t, "sm2p256")
 }
 
 func fromHex(s string) *big.Int {
-        r, ok := new(big.Int).SetString(s, 16)
-        if !ok {
-                panic("bad hex")
-        }
-        return r
+	r, ok := new(big.Int).SetString(s, 16)
+	if !ok {
+		panic("bad hex")
+	}
+	return r
 }
 
 func TestVectors(t *testing.T) {
@@ -337,6 +336,7 @@ func TestVectors(t *testing.T) {
 	var h hash.Hash
 	var msg []byte
 	var hashed []byte
+	var uid []byte
 	var r, s *big.Int
 	pub := new(PublicKey)
 
@@ -364,7 +364,7 @@ func TestVectors(t *testing.T) {
 			parts := strings.SplitN(line, ",", 2)
 
 			switch parts[0] {
-			case "P-256":
+			case "P-256sm":
 				pub.Curve = SM2P256V1()
 			default:
 				pub.Curve = nil
@@ -381,6 +381,9 @@ func TestVectors(t *testing.T) {
 				h = sha512.New384()
 			case "SHA-512":
 				h = sha512.New()
+			case "SM3":
+				h = sm3.New()
+
 			default:
 				h = nil
 			}
@@ -405,9 +408,19 @@ func TestVectors(t *testing.T) {
 			r = fromHex(line[4:])
 		case strings.HasPrefix(line, "S = "):
 			s = fromHex(line[4:])
+		case strings.HasPrefix(line, "Uid = "):
+			bu, _ := hex.DecodeString(line[6:])
+			uid = []byte(bu)
 		case strings.HasPrefix(line, "Result = "):
 			expected := line[9] == 'P'
+			priv, _ := GenerateKey(rand.Reader)
+			za, err := ZA(&priv.PublicKey, uid)
+			if err != nil {
+				panic("gen ZA failed")
+			}
+
 			h.Reset()
+			h.Write(za)
 			h.Write(msg)
 			hashed := h.Sum(hashed[:0])
 			if Verify(pub, hashed, r, s) != expected {
@@ -418,4 +431,3 @@ func TestVectors(t *testing.T) {
 		}
 	}
 }
-

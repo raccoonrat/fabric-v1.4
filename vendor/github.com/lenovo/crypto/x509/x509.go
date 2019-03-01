@@ -19,23 +19,23 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rsa"
-	"hash"
 	_ "crypto/sha1"
 	_ "crypto/sha256"
 	_ "crypto/sha512"
-	"github.com/lenovo/crypto/sm/sm2"
-	"github.com/lenovo/crypto/sm/sm3"
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/lenovo/crypto/sm/sm2"
+	"github.com/lenovo/crypto/sm/sm3"
+	"hash"
 	"io"
 	"math/big"
 	"net"
+	"reflect"
 	"strconv"
 	"time"
-	"reflect"
 )
 
 // pkixPublicKey reflects a PKIX public key structure. See SubjectPublicKeyInfo
@@ -154,7 +154,7 @@ type certificate struct {
 
 type tbsCertificate struct {
 	Raw                asn1.RawContent
-	Version            int              `asn1:"optional,explicit,default:0,tag:0"`
+	Version            int `asn1:"optional,explicit,default:0,tag:0"`
 	SerialNumber       *big.Int
 	SignatureAlgorithm pkix.AlgorithmIdentifier
 	Issuer             asn1.RawValue
@@ -352,7 +352,7 @@ var signatureAlgorithmDetails = []struct {
 	pubKeyAlgo PublicKeyAlgorithm
 	hash       crypto.Hash
 }{
-	{MD2WithRSA, oidSignatureMD2WithRSA, RSA, crypto.Hash(0) /* no value for MD2 */ },
+	{MD2WithRSA, oidSignatureMD2WithRSA, RSA, crypto.Hash(0) /* no value for MD2 */},
 	{MD5WithRSA, oidSignatureMD5WithRSA, RSA, crypto.MD5},
 	{SHA1WithRSA, oidSignatureSHA1WithRSA, RSA, crypto.SHA1},
 	{SHA1WithRSA, oidISOSignatureSHA1WithRSA, RSA, crypto.SHA1},
@@ -575,7 +575,7 @@ func oidFromNamedCurve(curve elliptic.Curve) (asn1.ObjectIdentifier, bool) {
 type KeyUsage int
 
 const (
-	KeyUsageDigitalSignature  KeyUsage = 1 << iota
+	KeyUsageDigitalSignature KeyUsage = 1 << iota
 	KeyUsageContentCommitment
 	KeyUsageKeyEncipherment
 	KeyUsageDataEncipherment
@@ -618,7 +618,7 @@ var (
 type ExtKeyUsage int
 
 const (
-	ExtKeyUsageAny                        ExtKeyUsage = iota
+	ExtKeyUsageAny ExtKeyUsage = iota
 	ExtKeyUsageServerAuth
 	ExtKeyUsageClientAuth
 	ExtKeyUsageCodeSigning
@@ -896,9 +896,9 @@ func checkSignature(algo SignatureAlgorithm, signed, signature []byte, publicKey
 	}
 
 	var h hash.Hash
-	if(algo==SM2WithSM3){
+	if algo == SM2WithSM3 {
 		h = sm3.New()
-	}else{
+	} else {
 		if !hashType.Available() {
 			return ErrUnsupportedAlgorithm
 		}
@@ -1922,9 +1922,9 @@ func CreateCertificate(rand io.Reader, template, parent *Certificate, pub, priv 
 	c.Raw = tbsCertContents
 
 	var h hash.Hash
-	if(hashFunc == 255){
+	if hashFunc == 255 {
 		h = sm3.New()
-	}else{
+	} else {
 		h = hashFunc.New()
 	}
 

@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-
 package sm3
 
 import (
@@ -38,11 +37,10 @@ func TestGolden(t *testing.T) {
 }
 
 func TestPnPanic(t *testing.T) {
-		var buf = make([]byte, 4000)
+	var buf = make([]byte, 4000)
 
-		SumSM3(buf)
+	SumSM3(buf)
 }
-
 
 func TestSize(t *testing.T) {
 	c := New()

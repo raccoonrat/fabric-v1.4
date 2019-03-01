@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-
 package sm3
 
 import (
@@ -57,7 +56,7 @@ func (d *digest) Reset() {
 	d.len = 0
 }
 
-func GetFunc() (func() hash.Hash){
+func GetFunc() func() hash.Hash {
 	return hashFunc
 }
 
