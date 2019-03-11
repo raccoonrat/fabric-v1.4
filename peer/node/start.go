@@ -61,6 +61,7 @@ import (
 	"github.com/hyperledger/fabric/core/peer"
 	"github.com/hyperledger/fabric/core/scc"
 	"github.com/hyperledger/fabric/core/scc/cscc"
+	"github.com/hyperledger/fabric/core/scc/kmscc"
 	"github.com/hyperledger/fabric/core/scc/lscc"
 	"github.com/hyperledger/fabric/core/scc/qscc"
 	"github.com/hyperledger/fabric/discovery"
@@ -143,7 +144,7 @@ func serve(args []string) error {
 
 	//startup aclmgmt with default ACL providers (resource based and default 1.0 policies based).
 	//Users can pass in their own ACLProvider to RegisterACLProvider (currently unit tests do this)
-	aclProvider := aclmgmt.NewACLProvider( //使用默认ACL提供程序启动aclmgmt（基于资源和默认1.0策略）。 //用户可以将自己的ACLProvider传递给RegisterACLProvider（目前单元测试执行此操作）
+	aclProvider := aclmgmt.NewACLProvider(
 		aclmgmt.ResourceGetter(peer.GetStableChannelConfig),
 	)
 
@@ -688,9 +689,11 @@ func registerChaincodeSupport(
 	csccInst := cscc.New(ccp, sccp, aclProvider)
 	qsccInst := qscc.New(aclProvider)
 
+	kmsccInst := kmscc.New(ccp, sccp, aclProvider)
+
 	//Now that chaincode is initialized, register all system chaincodes.
 	sccs := scc.CreatePluginSysCCs(sccp)
-	for _, cc := range append([]scc.SelfDescribingSysCC{lsccInst, csccInst, qsccInst, lifecycleSCC}, sccs...) {
+	for _, cc := range append([]scc.SelfDescribingSysCC{lsccInst, csccInst, qsccInst, lifecycleSCC, kmscc}, sccs...) {
 		sccp.RegisterSysCC(cc)
 	}
 	pb.RegisterChaincodeSupportServer(grpcServer.Server(), ccSrv)
