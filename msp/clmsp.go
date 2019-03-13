@@ -10,13 +10,15 @@ import (
 	"bytes"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
+	"time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric/bccsp"
 	clbccsp "github.com/hyperledger/fabric/bccsp/cl"
-	"github.com/hyperledger/fabric/bccsp/signer"
+	"github.com/hyperledger/fabric/bccsp/cl/signer"
 	"github.com/hyperledger/fabric/bccsp/sw"
 	m "github.com/hyperledger/fabric/protos/msp"
 	"github.com/pkg/errors"
@@ -38,7 +40,7 @@ type clmsp struct {
 	tlsIntermediateCerts [][]byte
 
 	// list of signing identities
-	signer *clSigningIdentity
+	signer SigningIdentity
 
 	// list of admin identities
 	admins []clidentity
@@ -108,17 +110,34 @@ func (msp *clmsp) getCertFromPem(idBytes []byte) (*x509.Certificate, error) {
 	return cert, nil
 }
 
-func (msp *clmsp) getclIdentityFromConf(PABytes []byte) (clidentity, error) {
+func (msp *clmsp) getclIdentityFromConf(PABytes []byte) (*clidentity, error) {
 
 	// get the PA in the right format
-	block, err := pem.Decode(PABytes)
-	if err != nil {
-		return nil, nil, err
+	block, _ := pem.Decode(PABytes)
+	if block == nil {
+		return nil, errors.New("invalid PA, failed decoding pem Bytes")
+
 	}
 
-	return &clidentity{PA: block.Bytes, msp: msp}, nil
+	// Use the hash of the identity's certificate as id in the IdentityIdentifier
+	hashOpt, err := bccsp.GetHashOpt(msp.cryptoConfig.IdentityIdentifierHashFunction)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed getting hash function options")
+	}
+
+	digest, err := msp.csp.Hash(block.Bytes, hashOpt)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed hashing PA to compute the id of the IdentityIdentifier")
+	}
+
+	id := &IdentityIdentifier{
+		Mspid: msp.name,
+		Id:    hex.EncodeToString(digest)}
+
+	return &clidentity{id: id, PA: block.Bytes, msp: msp}, nil
 }
 
+/*
 func (msp *clmsp) getclIdentityFromConfPA(idBytes []byte) (Identity, bccsp.Key, error) {
 
 	//get the PA in the right format
@@ -155,6 +174,7 @@ func (msp *clmsp) getIdentityFromConf(idBytes []byte) (Identity, bccsp.Key, erro
 
 	return mspId, certPubK, nil
 }
+*/
 
 func (msp *clmsp) getSigningIdentityFromConf(sidInfo *m.CLMSPSignerConfig) (SigningIdentity, error) {
 	if sidInfo == nil {
@@ -162,17 +182,22 @@ func (msp *clmsp) getSigningIdentityFromConf(sidInfo *m.CLMSPSignerConfig) (Sign
 	}
 
 	pemKey, _ := pem.Decode(sidInfo.Sk)
-	privKey, err := msp.csp.KeyImport(pemKey.Bytes, &bccsp.ECDSAPrivateKeyImportOpts{Temporary: true})
+	if pemKey == nil {
+		return nil, errors.New("getIdentityFromBytes error: Failed to load Sk")
+	}
+
+	privKey, err := msp.csp.KeyImport(pemKey.Bytes, &bccsp.CLPrivateKeyImportOpts{Temporary: true})
 	if err != nil {
 		return nil, errors.WithMessage(err, "getIdentityFromBytes error: Failed to import EC private key")
 	}
 
 	// get the peer signer
-	peerSigner, err := signer.New(msp.bccsp, privKey)
+	peerSigner, err := signer.New(msp.csp, privKey)
 	if err != nil {
 		return nil, errors.WithMessage(err, "getIdentityFromBytes error: Failed initializing bccspCryptoSigner")
 	}
-	return newCLSigningIdentity(privKey.PublicKey(), peerSigner, msp)
+
+	return newCLSigningIdentity(sidInfo.PA, peerSigner, msp)
 }
 
 // Setup sets up the internal data structures
@@ -183,6 +208,10 @@ func (msp *clmsp) Setup(conf1 *m.MSPConfig) error {
 		return errors.New("Setup error: nil conf reference")
 	}
 
+	if conf1.Type != int32(IBPCLA) {
+		return errors.Errorf("setup error: config is not of type IBPCLA")
+	}
+
 	// given that it's an msp of type fabric, extract the MSPConfig instance
 	conf := &m.CLMSPConfig{}
 	err := proto.Unmarshal(conf1.Config, conf)
@@ -191,6 +220,9 @@ func (msp *clmsp) Setup(conf1 *m.MSPConfig) error {
 	}
 
 	// set the name for this msp
+	if len(conf.Name) == 0 {
+		return errors.New("need a valid Name")
+	}
 	msp.name = conf.Name
 	mspLogger.Debugf("Setting up IBPCLA MSP instance %s", msp.name)
 
@@ -256,17 +288,17 @@ func (msp *clmsp) Validate(id Identity) error {
 	switch t := id.(type) {
 	case *clidentity:
 		clid = id.(*clidentity)
-	case *clSigningIdentity:
-		clid = id.(*clSigningIdentity).clidentity
+	case *clsigningidentity:
+		clid = id.(*clsigningidentity).clidentity
 	default:
-		return errors.New("identity type %T is not recognized", t)
+		return errors.Errorf("identity type %T is not recognized", t)
 	}
 
 	mspLogger.Debugf("CLMSP %s validating identity", msp.name)
 	if clid.GetMSPIdentifier() != msp.name {
 		return errors.Errorf("the supplied identity does not belong to this msp")
 	}
-	return clid.verifyProof()
+	return clid.validateIdentity()
 }
 
 // hasOURole checks that the identity belongs to the organizational unit
@@ -292,7 +324,7 @@ func (msp *clmsp) hasOURole(id Identity, mspRole m.MSPRole_MSPRoleType) error {
 	}
 }
 
-func (msp *clmsp) hasOURoleInternal(id *identity, mspRole m.MSPRole_MSPRoleType) error {
+func (msp *clmsp) hasOURoleInternal(id *clidentity, mspRole m.MSPRole_MSPRoleType) error {
 	var nodeOUValue string
 	switch mspRole {
 	case m.MSPRole_CLIENT:
@@ -333,16 +365,17 @@ func (msp *clmsp) DeserializeIdentity(serializedID []byte) (Identity, error) {
 
 // deserializeIdentityInternal returns an identity given its byte-level representation
 func (msp *clmsp) deserializeIdentityInternal(serializedIdentity []byte) (Identity, error) {
-	// This MSP will always deserialize certs this way
-	bl, _ := pem.Decode(serializedIdentity)
-	if bl == nil {
-		return nil, errors.New("could not decode the PEM structure")
+	mspLogger.Debug("clmsp: deserializing identity")
+	serialized := new(m.SerializedIBPCLAIdentity)
+	err := proto.Unmarshal(serializedIdentity, serialized)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not deserialize a Serialized CLIdentity")
 	}
-	PA := bl.Bytes
+	if serialized.PA == nil {
+		return nil, errors.Errorf("unable to deserialize CLIdentity: PA is invalid")
+	}
 
-	// TODO currently PA do not contain OU infomation, need to be add
-
-	return newclIdentity(PA, msp)
+	return newclIdentity(serialized.PA, msp)
 }
 
 // SatisfiesPrincipal returns null if the identity matches the principal or an error otherwise
@@ -416,7 +449,7 @@ func (msp *clmsp) satisfiesPrincipalValidated(id Identity, principal *m.MSPPrinc
 		// and compare it byte-by-byte with our cert
 		principalId, err := msp.DeserializeIdentity(principal.Principal)
 		if err != nil {
-			return errors.WithMessage(err, "invalid identity principal, not a PA")
+			return errors.WithMessage(err, "invalid principal, expect a serialized ibpcla identity")
 		}
 
 		if bytes.Equal(id.(*clidentity).PA, principalId.(*clidentity).PA) {
@@ -457,7 +490,7 @@ func (msp *clmsp) satisfiesPrincipalValidated(id Identity, principal *m.MSPPrinc
 		return errors.New("The identities do not match")
 	case m.MSPPrincipal_COMBINED:
 		if msp.version <= MSPv1_1 {
-			return errors.Errorf("Combined MSP Principals are unsupported in MSPv1_1")
+			return errors.Errorf("Combined MSP Principals are unsupported before MSPv1_2")
 		}
 
 		// Principal is a combination of multiple principals.
@@ -481,6 +514,9 @@ func (msp *clmsp) satisfiesPrincipalValidated(id Identity, principal *m.MSPPrinc
 		// The identity satisfies all the principals
 		return nil
 	case m.MSPPrincipal_ANONYMITY:
+		if msp.version <= MSPv1_1 {
+			return errors.Errorf("Anonymity MSP Principals are unsupported before MSPv1_2")
+		}
 		anon := &m.MSPIdentityAnonymity{}
 		err := proto.Unmarshal(principal.Principal, anon)
 		if err != nil {
@@ -488,7 +524,7 @@ func (msp *clmsp) satisfiesPrincipalValidated(id Identity, principal *m.MSPPrinc
 		}
 		switch anon.AnonymityType {
 		case m.MSPIdentityAnonymity_ANONYMOUS:
-			return errors.New("Principal is anonymous, CL MSP does not support anonymous identities")
+			return errors.New("Principal is anonymous, but CL MSP does not support anonymous identities")
 		case m.MSPIdentityAnonymity_NOMINAL:
 			return nil
 		default:
@@ -501,6 +537,7 @@ func (msp *clmsp) satisfiesPrincipalValidated(id Identity, principal *m.MSPPrinc
 	}
 }
 
+/*
 // getCertificationChain returns the certification chain of the passed identity within this msp
 func (msp *clmsp) getCertificationChain(id Identity) ([]*x509.Certificate, error) {
 	mspLogger.Debugf("MSP %s getting certification chain", msp.name)
@@ -515,7 +552,9 @@ func (msp *clmsp) getCertificationChain(id Identity) ([]*x509.Certificate, error
 		return nil, errors.New("identity type not recognized")
 	}
 }
+*/
 
+/*
 // getCertificationChainForBCCSPIdentity returns the certification chain of the passed bccsp identity within this msp
 func (msp *clmsp) getCertificationChainForBCCSPIdentity(id *identity) ([]*x509.Certificate, error) {
 	if id == nil {
@@ -535,6 +574,7 @@ func (msp *clmsp) getCertificationChainForBCCSPIdentity(id *identity) ([]*x509.C
 
 	return msp.getValidationChain(id.cert, false)
 }
+*/
 
 func (msp *clmsp) getUniqueValidationChain(cert *x509.Certificate, opts x509.VerifyOptions) ([]*x509.Certificate, error) {
 	// ask golang to validate the cert for us based on the options that we've built at setup time
@@ -556,6 +596,7 @@ func (msp *clmsp) getUniqueValidationChain(cert *x509.Certificate, opts x509.Ver
 	return validationChains[0], nil
 }
 
+/*
 func (msp *clmsp) getValidationChain(cert *x509.Certificate, isIntermediateChain bool) ([]*x509.Certificate, error) {
 	validationChain, err := msp.getUniqueValidationChain(cert, msp.getValidityOptsForCert(cert))
 	if err != nil {
@@ -578,21 +619,22 @@ func (msp *clmsp) getValidationChain(cert *x509.Certificate, isIntermediateChain
 	}
 	return validationChain, nil
 }
+*/
 
-// getCertificationChainIdentifier returns the certification chain identifier of the passed identity within this msp.
+// getPAIdentifier returns the certification chain identifier of the passed identity within this msp.
 // The identifier is computes as the SHA256 of the concatenation of the certificates in the chain.
-func (msp *clmsp) getCertificationChainIdentifier(id Identity) ([]byte, error) {
-	chain, err := msp.getCertificationChain(id)
-	if err != nil {
-		return nil, errors.WithMessage(err, fmt.Sprintf("failed getting certification chain for [%v]", id))
+func (msp *clmsp) getPAIdentifier(id Identity) ([]byte, error) {
+	scid := id.(*clidentity).id.Id
+	if len(scid) == 0 {
+		return nil, errors.New(fmt.Sprintf("failed getting PA identifier for [%v]", id))
 	}
 
-	// chain[0] is the certificate representing the identity.
-	// It will be discarded
-	return msp.getCertificationChainIdentifierFromChain(chain[1:])
+	cid, err := hex.DecodeString(scid)
+	return cid, err
 }
 
-func (msp *clmsp) getCertificationChainIdentifierFromChain(chain []*x509.Certificate) ([]byte, error) {
+/*
+func (msp *clmsp) getKGCIdentifierFromChain(chain []*x509.Certificate) ([]byte, error) {
 	// Hash the chain
 	// Use the hash of the identity's certificate as id in the IdentityIdentifier
 	hashOpt, err := bccsp.GetHashOpt(msp.cryptoConfig.IdentityIdentifierHashFunction)
@@ -600,7 +642,7 @@ func (msp *clmsp) getCertificationChainIdentifierFromChain(chain []*x509.Certifi
 		return nil, errors.WithMessage(err, "failed getting hash function options")
 	}
 
-	hf, err := msp.bccsp.GetHash(hashOpt)
+	hf, err := msp.csp.GetHash(hashOpt)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed getting hash function when computing certification chain identifier")
 	}
@@ -609,6 +651,7 @@ func (msp *clmsp) getCertificationChainIdentifierFromChain(chain []*x509.Certifi
 	}
 	return hf.Sum(nil), nil
 }
+*/
 
 // sanitizeCert ensures that x509 certificates signed using ECDSA
 // do have signatures in Low-S. If this is not the case, the certificate
@@ -663,4 +706,20 @@ func (msp *clmsp) GetBccsp(identifier string) (bccsp.BCCSP, error) {
 
 	return nil, fmt.Errorf("No bccsp identity for %s", identifier)
 
+}
+
+func (msp *clmsp) getValidityOptsForCert(cert *x509.Certificate) x509.VerifyOptions {
+	// First copy the opts to override the CurrentTime field
+	// in order to make the certificate passing the expiration test
+	// independently from the real local current time.
+	// This is a temporary workaround for FAB-3678
+
+	var tempOpts x509.VerifyOptions
+	tempOpts.Roots = msp.opts.Roots
+	tempOpts.DNSName = msp.opts.DNSName
+	tempOpts.Intermediates = msp.opts.Intermediates
+	tempOpts.KeyUsages = msp.opts.KeyUsages
+	tempOpts.CurrentTime = cert.NotBefore.Add(time.Second)
+
+	return tempOpts
 }

@@ -13,7 +13,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
 package sw
 
 import (
@@ -183,4 +182,30 @@ func TestEcdsaPublicKey(t *testing.T) {
 	_, err = k.Bytes()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "Failed marshalling key [")
+}
+
+func BenchmarkVerify(b *testing.B) {
+	b.ResetTimer()
+	// Generate a key
+	lowLevelKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+
+	msg := []byte("hello world")
+	sigma, _ := signECDSA(lowLevelKey, msg, nil)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			verifyECDSA(&lowLevelKey.PublicKey, sigma, msg, nil)
+		}
+	})
+	/*
+		R, S, err := utils.UnmarshalECDSASignature(sigma)
+		assert.NoError(t, err)
+		S.Add(utils.GetCurveHalfOrdersAt(elliptic.P256()), big.NewInt(1))
+		sigmaWrongS, err := utils.MarshalECDSASignature(R, S)
+		assert.NoError(t, err)
+		_, err = verifyECDSA(&lowLevelKey.PublicKey, sigmaWrongS, msg, nil)
+		assert.Error(t, err)
+	*/
 }

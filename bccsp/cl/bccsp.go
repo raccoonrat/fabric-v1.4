@@ -1,20 +1,23 @@
 package cl
 
 import (
-	"bytes"
-	"math/big"
+	"crypto/sha256"
+	"crypto/sha512"
+	"reflect"
 
 	"github.com/hyperledger/fabric/bccsp"
+	"github.com/hyperledger/fabric/bccsp/cl/cryptocl"
 	"github.com/hyperledger/fabric/bccsp/sw"
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/sha3"
 )
 
 type csp struct {
 	*sw.CSP
 }
 
-type PA struct {
-	raw []byte
+type SignatureScheme interface {
+	Verify(signature, msg []byte, ID string, PA []byte, KGCPub bccsp.Key) error
 }
 
 func New(keyStore bccsp.KeyStore) (*csp, error) {
@@ -24,36 +27,74 @@ func New(keyStore bccsp.KeyStore) (*csp, error) {
 	}
 
 	csp := &csp{CSP: base}
+
+	// signers
+	base.AddWrapper(reflect.TypeOf(cryptocl.NewSecretKey()), &cryptocl.Signer{})
+
+	// verifiers
+	base.AddWrapper(reflect.TypeOf(&bccsp.CLVerifierOpts{}), &cryptocl.Verifier{})
+
+	//importers
+	base.AddWrapper(reflect.TypeOf(&bccsp.CLKGCPublicKeyImportOpts{}), &cryptocl.KGCKeyImporter{})
+	base.AddWrapper(reflect.TypeOf(&bccsp.CLPrivateKeyImportOpts{}), &cryptocl.SignerKeyImporter{})
+
+	//hashers
+	base.AddWrapper(reflect.TypeOf(&bccsp.SHA256Opts{}), &cryptocl.Hasher{DoHash: sha256.New})
+	base.AddWrapper(reflect.TypeOf(&bccsp.SHA384Opts{}), &cryptocl.Hasher{DoHash: sha512.New384})
+	base.AddWrapper(reflect.TypeOf(&bccsp.SHA3_256Opts{}), &cryptocl.Hasher{DoHash: sha3.New256})
+	base.AddWrapper(reflect.TypeOf(&bccsp.SHA3_384Opts{}), &cryptocl.Hasher{DoHash: sha3.New384})
+
 	return csp, nil
 }
 
-func RecoverPub(rootPub bccsp.Key, PA []byte, ID string, hashOpt bccsp.HashOpts) (bccsp.Key, error) {
-
-	//
-	var buffer bytes.Buffer
-	c := rootPub.pubKey.Curve
-	N := c.Params().N
-
-	buffer.Write([]byte(ID))
-	buffer.Write(PA)
-	e := csp.Hash(buffer.Bytes(), hashOpt)
-	e0 := new(big.Int).SetBytes(e[0:15])
-	e1 := new(big.Int).SetBytes(e[16:32])
-	//Pub = e0*PA + e1*rootPub
-	PAInt := new(big.Int).SetBytes(PA)
-	e0.Mul(PAInt, e0)
-	e0.Mod(e0, N)
-
-	PInt := rootPub.(*ecdsaPublicKey).pubKey.X
-	e1.Mul(PInt, e1)
-	e1.Mod(e1, N)
-
-	pubInt := new(big.Int).Add(e0, e1)
-	pubInt.Mod(pubInt, N)
-
-	pubKey, err := csp.KeyImport(pubInt.Bytes(), &bccsp.ECDSAPublicKeyImportOpts{Temporary: true})
-	if err != nil {
-		return nil, errors.WithMessage(err, "RecoverPubs error: Failed to import EC public key")
+// Sign signs digest using key k.
+// The opts argument should be appropriate for the primitive used.
+//
+// Note that when a signature of a hash of a larger message is needed,
+// the caller is responsible for hashing the larger message and passing
+// the hash (as digest).
+// Notice that this is overriding the Sign methods of the sw impl. to avoid the digest check.
+func (csp *csp) Sign(k bccsp.Key, digest []byte, opts bccsp.SignerOpts) (signature []byte, err error) {
+	// Validate arguments
+	if k == nil {
+		return nil, errors.New("Invalid Key. It must not be nil.")
 	}
-	return pubKey, nil
+	// Do not check for digest
+
+	keyType := reflect.TypeOf(k)
+	signer, found := csp.Signers[keyType]
+	if !found {
+		return nil, errors.Errorf("Unsupported 'SignKey' provided [%s]", keyType)
+	}
+
+	signature, err = signer.Sign(k, digest, opts)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed signing with opts [%v]", opts)
+	}
+
+	return
+}
+
+// Verify verifies signature against key k and digest
+// Notice that this is overriding the Verify methods of the sw impl.
+func (csp *csp) Verify(k bccsp.Key, signature, digest []byte, opts bccsp.SignerOpts) (valid bool, err error) {
+	// Validate arguments
+	if k != nil {
+		return false, errors.New("Invalid Key. It must be nil.")
+	}
+	if len(signature) == 0 {
+		return false, errors.New("Invalid signature. Cannot be empty.")
+	}
+
+	verifier, found := csp.Verifiers[reflect.TypeOf(opts)]
+	if !found {
+		return false, errors.Errorf("Unsupported CLVerifierOpts provided [%v]", opts)
+	}
+
+	valid, err = verifier.Verify(k, signature, digest, opts)
+	if err != nil {
+		return false, errors.Wrapf(err, "Failed verifing with opts [%v]", opts)
+	}
+
+	return
 }

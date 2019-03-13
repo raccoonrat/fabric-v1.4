@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 
 	"github.com/golang/protobuf/proto"
@@ -18,62 +19,40 @@ import (
 	errors "github.com/pkg/errors"
 )
 
-func (msp *clmsp) getCertifiersIdentifier(certRaw []byte) ([]byte, error) {
-	// 1. check that certificate is registered in msp.rootCerts or msp.intermediateCerts
-	cert, err := msp.getCertFromPem(certRaw)
-	if err != nil {
-		return nil, fmt.Errorf("Failed getting certificate for [%v]: [%s]", certRaw, err)
-	}
+func (msp *clmsp) getKGCIdentifier(PubRaw []byte) ([]byte, error) {
 
-	// 2. Sanitize it to ensure like for like comparison
-	cert, err = msp.sanitizeCert(cert)
-	if err != nil {
-		return nil, fmt.Errorf("sanitizeCert failed %s", err)
+	//decode and get pub
+	bl, _ := pem.Decode(PubRaw)
+	if bl == nil {
+		return nil, errors.New("invalid KGC Pubs, pem decode fail")
 	}
-
 	found := false
-	root := false
 	// Search among root certificates
-	for _, v := range msp.rootCerts {
-		if v.(*identity).cert.Equal(cert) {
+	var temp []byte
+	for _, v := range msp.rootPubs {
+		temp, _ = v.Bytes()
+		if bytes.Equal(temp, bl.Bytes) {
 			found = true
-			root = true
 			break
 		}
 	}
 	if !found {
-		// Search among root intermediate certificates
-		for _, v := range msp.intermediateCerts {
-			if v.(*identity).cert.Equal(cert) {
-				found = true
-				break
-			}
-		}
-	}
-	if !found {
-		// Certificate not valid, reject configuration
-		return nil, fmt.Errorf("Failed adding OU. Certificate [%v] not in root or intermediate certs.", cert)
+		// kgc Pub not valid, reject configuration
+		return nil, fmt.Errorf("Failed adding OU. Pub [%v] not in root pubs.", bl.Bytes)
 	}
 
-	// 3. get the certification path for it
-	var certifiersIdentifier []byte
-	var chain []*x509.Certificate
-	if root {
-		chain = []*x509.Certificate{cert}
-	} else {
-		chain, err = msp.getValidationChain(cert, true)
-		if err != nil {
-			return nil, fmt.Errorf("Failed computing validation chain for [%v]. [%s]", cert, err)
-		}
-	}
-
-	// 4. compute the hash of the certification path
-	certifiersIdentifier, err = msp.getCertificationChainIdentifierFromChain(chain)
+	// compute the hash of the pub
+	hashOpt, err := bccsp.GetHashOpt(msp.cryptoConfig.IdentityIdentifierHashFunction)
 	if err != nil {
-		return nil, fmt.Errorf("Failed computing Certifiers Identifier for [%v]. [%s]", certRaw, err)
+		return nil, errors.WithMessage(err, "failed getting hash function options    ")
 	}
+	hf, err := msp.csp.GetHash(hashOpt)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed getting hash function when computing kgc identifier")
+	}
+	hf.Write(bl.Bytes)
 
-	return certifiersIdentifier, nil
+	return hf.Sum(nil), nil
 
 }
 
@@ -105,11 +84,14 @@ func (msp *clmsp) setupKGCs(conf *m.CLMSPConfig) error {
 		return errors.New("expected at least one KGC pubs")
 	}
 
+	// make and fill the set of KGC Public keys
+	msp.rootPubs = make([]bccsp.Key, len(conf.KGCPubs))
+
 	for i, v := range conf.KGCPubs {
 		// get the KGC public key in the right format
-		PubK, err := msp.csp.KeyImport(v, &bccsp.ECDSAPKIXPublicKeyImportOpts{Temporary: True})
+		PubK, err := msp.csp.KeyImport(v, &bccsp.CLKGCPublicKeyImportOpts{Temporary: true})
 		if err != nil {
-			return err
+			return errors.WithMessage(err, "failed to import KGC Public key")
 		}
 		msp.rootPubs[i] = PubK
 	}
@@ -117,16 +99,16 @@ func (msp *clmsp) setupKGCs(conf *m.CLMSPConfig) error {
 	return nil
 }
 
-func (msp *clmsp) setupAdmins(conf *m.FabricMSPConfig) error {
+func (msp *clmsp) setupAdmins(conf *m.CLMSPConfig) error {
 	// make and fill the set of admin PAs (if present)
 	msp.admins = make([]clidentity, len(conf.Admins))
 	for i, admPA := range conf.Admins {
-		id, err := msp.getclIdentityFromConf(admCert)
+		id, err := msp.getclIdentityFromConf(admPA)
 		if err != nil {
 			return err
 		}
 
-		msp.admins[i] = id
+		msp.admins[i] = *id
 	}
 
 	return nil
@@ -152,6 +134,7 @@ func (msp *clmsp) setupCRLs(conf *m.CLMSPConfig) error {
 	return nil
 }
 
+/*
 func (msp *clmsp) finalizeSetupCAs() error {
 	// ensure that our CAs are properly formed and that they are valid
 	for _, id := range append(append([]Identity{}, msp.rootCerts...), msp.intermediateCerts...) {
@@ -217,9 +200,9 @@ func (msp *clmsp) setupNodeOUs(config *m.FabricMSPConfig) error {
 	return nil
 }
 
-//to do
+*/
 func (msp *clmsp) setupSigningIdentity(conf *m.CLMSPConfig) error {
-	if conf.SigningIdentity != nil {
+	if conf.CLSigningIdentity != nil {
 		sid, err := msp.getSigningIdentityFromConf(conf.CLSigningIdentity)
 		if err != nil {
 			return err
@@ -231,20 +214,20 @@ func (msp *clmsp) setupSigningIdentity(conf *m.CLMSPConfig) error {
 	return nil
 }
 
-func (msp *clmsp) setupOUs(conf *m.FabricMSPConfig) error {
-	//to do
+func (msp *clmsp) setupOUs(conf *m.CLMSPConfig) error {
+
 	msp.ouIdentifiers = make(map[string][][]byte)
 	for _, ou := range conf.OrganizationalUnitIdentifiers {
 
-		certifiersIdentifier, err := msp.getCertifiersIdentifier(ou.Certificate)
+		kgcIdentifier, err := msp.getKGCIdentifier(ou.Certificate)
 		if err != nil {
-			return errors.WithMessage(err, fmt.Sprintf("failed getting certificate for [%v]", ou))
+			return errors.WithMessage(err, fmt.Sprintf("failed getting kgcpub for [%v]", ou))
 		}
 
 		// Check for duplicates
 		found := false
 		for _, id := range msp.ouIdentifiers[ou.OrganizationalUnitIdentifier] {
-			if bytes.Equal(id, certifiersIdentifier) {
+			if bytes.Equal(id, kgcIdentifier) {
 				mspLogger.Warningf("Duplicate found in ou identifiers [%s, %v]", ou.OrganizationalUnitIdentifier, id)
 				found = true
 				break
@@ -255,7 +238,7 @@ func (msp *clmsp) setupOUs(conf *m.FabricMSPConfig) error {
 			// No duplicates found, add it
 			msp.ouIdentifiers[ou.OrganizationalUnitIdentifier] = append(
 				msp.ouIdentifiers[ou.OrganizationalUnitIdentifier],
-				certifiersIdentifier,
+				kgcIdentifier,
 			)
 		}
 	}
@@ -263,9 +246,9 @@ func (msp *clmsp) setupOUs(conf *m.FabricMSPConfig) error {
 	return nil
 }
 
-func (msp *clmsp) setupTLSCAs(conf *m.FabricMSPConfig) error {
+func (msp *clmsp) setupTLSCAs(conf *m.CLMSPConfig) error {
 
-	opts := &x509.VerifyOptions{Roots: x509.NewCertPool(), Intermediates: x509.NewCertPool()}
+	msp.opts = &x509.VerifyOptions{Roots: x509.NewCertPool(), Intermediates: x509.NewCertPool()}
 
 	// Load TLS root and intermediate CA identities
 	msp.tlsRootCerts = make([][]byte, len(conf.TlsRootCerts))
@@ -278,7 +261,7 @@ func (msp *clmsp) setupTLSCAs(conf *m.FabricMSPConfig) error {
 
 		rootCerts[i] = cert
 		msp.tlsRootCerts[i] = trustedCert
-		opts.Roots.AddCert(cert)
+		msp.opts.Roots.AddCert(cert)
 	}
 
 	// make and fill the set of intermediate certs (if present)
@@ -292,7 +275,7 @@ func (msp *clmsp) setupTLSCAs(conf *m.FabricMSPConfig) error {
 
 		intermediateCerts[i] = cert
 		msp.tlsIntermediateCerts[i] = trustedCert
-		opts.Intermediates.AddCert(cert)
+		msp.opts.Intermediates.AddCert(cert)
 	}
 
 	// ensure that our CAs are properly formed and that they are valid
@@ -308,7 +291,7 @@ func (msp *clmsp) setupTLSCAs(conf *m.FabricMSPConfig) error {
 			return errors.WithMessage(err, fmt.Sprintf("CA Certificate problem with Subject Key Identifier extension, (SN: %x)", cert.SerialNumber))
 		}
 
-		if err := msp.validateTLSCAIdentity(cert, opts); err != nil {
+		if err := msp.validateTLSCAIdentity(cert, msp.opts); err != nil {
 			return errors.WithMessage(err, fmt.Sprintf("CA Certificate is not valid, (SN: %s)", cert.SerialNumber))
 		}
 	}
@@ -316,7 +299,7 @@ func (msp *clmsp) setupTLSCAs(conf *m.FabricMSPConfig) error {
 	return nil
 }
 
-func (msp *clmsp) setupV1(conf1 *m.FabricMSPConfig) error {
+func (msp *clmsp) setupV1(conf1 *m.CLMSPConfig) error {
 	err := msp.preSetupV1(conf1)
 	if err != nil {
 		return err
@@ -333,22 +316,23 @@ func (msp *clmsp) setupV1(conf1 *m.FabricMSPConfig) error {
 func (msp *clmsp) preSetupV1(conf *m.CLMSPConfig) error {
 	// setup crypto config
 	if err := msp.setupCrypto(conf); err != nil {
-		return err
+		return errors.Wrap(err, "setup crypto error")
 	}
 
 	// Setup KGCs
 	if err := msp.setupKGCs(conf); err != nil {
-		return err
+		return errors.Wrap(err, "setup KGC error")
+
 	}
 
 	// Setup Admins
 	if err := msp.setupAdmins(conf); err != nil {
-		return err
+		return errors.Wrap(err, "setup Admins error")
 	}
 
 	// Setup CRLs
 	if err := msp.setupCRLs(conf); err != nil {
-		return err
+		return errors.Wrap(err, "setup CRL error")
 	}
 
 	// Finalize setup of the CAs
@@ -358,7 +342,7 @@ func (msp *clmsp) preSetupV1(conf *m.CLMSPConfig) error {
 
 	// setup the signer (if present)
 	if err := msp.setupSigningIdentity(conf); err != nil {
-		return err
+		return errors.Wrap(err, "setup signing identity error")
 	}
 
 	// setup TLS CAs
@@ -374,7 +358,7 @@ func (msp *clmsp) preSetupV1(conf *m.CLMSPConfig) error {
 	return nil
 }
 
-func (msp *clmsp) postSetupV1(conf *m.FabricMSPConfig) error {
+func (msp *clmsp) postSetupV1(conf *m.CLMSPConfig) error {
 	// make sure that admins are valid members as well
 	// this way, when we validate an admin MSP principal
 	// we can simply check for exact match of certs
@@ -395,9 +379,11 @@ func (msp *clmsp) setupV11(conf *m.CLMSPConfig) error {
 	}
 
 	// setup NodeOUs
-	if err := msp.setupNodeOUs(conf); err != nil {
-		return err
-	}
+	/*
+		if err := msp.setupNodeOUs(conf); err != nil {
+			return err
+		}
+	*/
 
 	err = msp.postSetupV11(conf)
 	if err != nil {
@@ -407,7 +393,7 @@ func (msp *clmsp) setupV11(conf *m.CLMSPConfig) error {
 	return nil
 }
 
-func (msp *clmsp) postSetupV11(conf *m.FabricMSPConfig) error {
+func (msp *clmsp) postSetupV11(conf *m.CLMSPConfig) error {
 	// Check for OU enforcement
 	if !msp.ouEnforcement {
 		// No enforcement required. Call post setup as per V1
@@ -426,6 +412,74 @@ func (msp *clmsp) postSetupV11(conf *m.FabricMSPConfig) error {
 		err = admin.SatisfiesPrincipal(principal)
 		if err != nil {
 			return errors.WithMessage(err, fmt.Sprintf("admin %d is invalid", i))
+		}
+	}
+
+	return nil
+}
+
+func (msp *clmsp) validateTLSCAIdentity(cert *x509.Certificate, opts *x509.VerifyOptions) error {
+	if !cert.IsCA {
+		return errors.New("Only CA identities can be validated")
+	}
+
+	validationChain, err := msp.getUniqueValidationChain(cert, *opts)
+	if err != nil {
+		return errors.WithMessage(err, "could not obtain certification chain")
+	}
+	if len(validationChain) == 1 {
+		// validationChain[0] is the root CA certificate
+		return nil
+	}
+
+	return msp.validateCertAgainstChain(cert, validationChain)
+}
+
+func (msp *clmsp) validateCertAgainstChain(cert *x509.Certificate, validationChain []*x509.Certificate) error {
+	// here we know that the identity is valid; now we have to check whether it has been revoked
+
+	// identify the SKI of the CA that signed this cert
+	SKI, err := getSubjectKeyIdentifierFromCert(validationChain[1])
+	if err != nil {
+		return errors.WithMessage(err, "could not obtain Subject Key Identifier for signer cert")
+	}
+
+	// check whether one of the CRLs we have has this cert's
+	// SKI as its AuthorityKeyIdentifier
+	for _, crl := range msp.CRL {
+		aki, err := getAuthorityKeyIdentifierFromCrl(crl)
+		if err != nil {
+			return errors.WithMessage(err, "could not obtain Authority Key Identifier for crl")
+		}
+
+		// check if the SKI of the cert that signed us matches the AKI of any of the CRLs
+		if bytes.Equal(aki, SKI) {
+			// we have a CRL, check whether the serial number is revoked
+			for _, rc := range crl.TBSCertList.RevokedCertificates {
+				if rc.SerialNumber.Cmp(cert.SerialNumber) == 0 {
+					// We have found a CRL whose AKI matches the SKI of
+					// the CA (root or intermediate) that signed the
+					// certificate that is under validation. As a
+					// precaution, we verify that said CA is also the
+					// signer of this CRL.
+					err = validationChain[1].CheckCRLSignature(crl)
+					if err != nil {
+						// the CA cert that signed the certificate
+						// that is under validation did not sign the
+						// candidate CRL - skip
+						mspLogger.Warningf("Invalid signature over the identified CRL, error %+v", err)
+						continue
+					}
+
+					// A CRL also includes a time of revocation so that
+					// the CA can say "this cert is to be revoked starting
+					// from this time"; however here we just assume that
+					// revocation applies instantaneously from the time
+					// the MSP config is committed and used so we will not
+					// make use of that field
+					return errors.New("The certificate has been revoked")
+				}
+			}
 		}
 	}
 

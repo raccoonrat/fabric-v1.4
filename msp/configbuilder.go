@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric/bccsp"
@@ -203,11 +204,28 @@ func GetLocalCLMspConfig(dir string, bccspConfig *factory.FactoryOpts, ID string
 	}
 
 	PA, err := getPemMaterialFromDir(signcertDir)
-	if err != nil || len(signcert) == 0 {
-		return nil, errors.Wrapf(err, "could not load a valid signer certificate from directory %s", signcertDir)
+	if err != nil || len(PA) == 0 {
+		return nil, errors.Wrapf(err, "could not load a valid vice identity from directory %s", signcertDir)
 	}
 
-	sigid := &msp.SigningIdentityInfo{PublicSigner: PA[0], PrivateSigner: nil}
+	//get Sk
+	var sk []byte
+	walkFunc := func(path string, info os.FileInfo, err error) error {
+		if strings.HasSuffix(path, "_sk") {
+			sk, err = ioutil.ReadFile(path)
+			if err != nil {
+				return errors.WithMessage(err, "read sk failed")
+			}
+			return nil
+		}
+		return nil
+	}
+	err = filepath.Walk(keystoreDir, walkFunc)
+	if (err != nil) || (sk == nil) {
+		return nil, errors.Wrapf(err, "could not load a valid sk from directory %s", signcertDir)
+	}
+
+	sigid := &msp.CLMSPSignerConfig{Sk: sk, PA: PA[0]}
 
 	return GetCLMspConfig(dir, ID, sigid)
 }
@@ -429,12 +447,12 @@ const (
 	CLKGCPubs = "kgcpubs"
 )
 
-func GetCLMspConfig(dir string, ID string, sigid *msp.SigningIdentityInfo) (*msp.MSPConfig, error) {
+func GetCLMspConfig(dir string, ID string, sigid *msp.CLMSPSignerConfig) (*msp.MSPConfig, error) {
 	KGCPubDir := filepath.Join(dir, CLKGCPubs)
 	admincertDir := filepath.Join(dir, admincerts)
 	intermediatecertsDir := filepath.Join(dir, intermediatecerts)
 	crlsDir := filepath.Join(dir, crlsfolder)
-	//configFile := filepath.Join(dir, configfilename)
+	configFile := filepath.Join(dir, configfilename)
 	tlscacertDir := filepath.Join(dir, tlscacerts)
 	tlsintermediatecertsDir := filepath.Join(dir, tlsintermediatecerts)
 
@@ -448,7 +466,7 @@ func GetCLMspConfig(dir string, ID string, sigid *msp.SigningIdentityInfo) (*msp
 		return nil, errors.WithMessage(err, fmt.Sprintf("could not load a valid admin certificate from directory %s", admincertDir))
 	}
 
-	intermediatepubs, err := getPemMaterialFromDir(intermediatecertsDir)
+	//intermediatepubs, err := getPemMaterialFromDir(intermediatecertsDir)
 	if os.IsNotExist(err) {
 		mspLogger.Debugf("Intermediate certs folder not found at [%s]. Skipping. [%s]", intermediatecertsDir, err)
 	} else if err != nil {
@@ -479,6 +497,83 @@ func GetCLMspConfig(dir string, ID string, sigid *msp.SigningIdentityInfo) (*msp
 		return nil, errors.WithMessage(err, fmt.Sprintf("failed loading crls at [%s]", crlsDir))
 	}
 
+	// Load configuration file
+	// if the configuration file is there then load it
+	// otherwise skip it
+	var ouis []*msp.FabricOUIdentifier
+	var nodeOUs *msp.FabricNodeOUs
+	_, err = os.Stat(configFile)
+	if err == nil {
+		// load the file, if there is a failure in loading it then
+		// return an error
+		raw, err := ioutil.ReadFile(configFile)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed loading configuration file at [%s]", configFile)
+		}
+
+		configuration := Configuration{}
+		err = yaml.Unmarshal(raw, &configuration)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed unmarshalling configuration file at [%s]", configFile)
+		}
+
+		// Prepare OrganizationalUnitIdentifiers
+		if len(configuration.OrganizationalUnitIdentifiers) > 0 {
+			for _, ouID := range configuration.OrganizationalUnitIdentifiers {
+				f := filepath.Join(dir, ouID.Certificate)
+				raw, err = readFile(f)
+				if err != nil {
+					return nil, errors.Wrapf(err, "failed loading OrganizationalUnit kgcpub at [%s]", f)
+				}
+
+				oui := &msp.FabricOUIdentifier{
+					Certificate:                  raw,
+					OrganizationalUnitIdentifier: ouID.OrganizationalUnitIdentifier,
+				}
+				ouis = append(ouis, oui)
+			}
+		}
+
+		// Prepare NodeOUs
+		if configuration.NodeOUs != nil && configuration.NodeOUs.Enable {
+			mspLogger.Debug("Loading NodeOUs")
+			if configuration.NodeOUs.ClientOUIdentifier == nil || len(configuration.NodeOUs.ClientOUIdentifier.OrganizationalUnitIdentifier) == 0 {
+				return nil, errors.New("Failed loading NodeOUs. ClientOU must be different from nil.")
+			}
+			if configuration.NodeOUs.PeerOUIdentifier == nil || len(configuration.NodeOUs.PeerOUIdentifier.OrganizationalUnitIdentifier) == 0 {
+				return nil, errors.New("Failed loading NodeOUs. PeerOU must be different from nil.")
+			}
+
+			nodeOUs = &msp.FabricNodeOUs{
+				Enable:             configuration.NodeOUs.Enable,
+				ClientOuIdentifier: &msp.FabricOUIdentifier{OrganizationalUnitIdentifier: configuration.NodeOUs.ClientOUIdentifier.OrganizationalUnitIdentifier},
+				PeerOuIdentifier:   &msp.FabricOUIdentifier{OrganizationalUnitIdentifier: configuration.NodeOUs.PeerOUIdentifier.OrganizationalUnitIdentifier},
+			}
+
+			// Read certificates, if defined
+
+			// ClientOU
+			f := filepath.Join(dir, configuration.NodeOUs.ClientOUIdentifier.Certificate)
+			raw, err = readFile(f)
+			if err != nil {
+				mspLogger.Infof("Failed loading ClientOU kgcpub at [%s]: [%s]", f, err)
+			} else {
+				nodeOUs.ClientOuIdentifier.Certificate = raw
+			}
+
+			// PeerOU
+			f = filepath.Join(dir, configuration.NodeOUs.PeerOUIdentifier.Certificate)
+			raw, err = readFile(f)
+			if err != nil {
+				mspLogger.Debugf("Failed loading PeerOU kgcpub at [%s]: [%s]", f, err)
+			} else {
+				nodeOUs.PeerOuIdentifier.Certificate = raw
+			}
+		}
+	} else {
+		mspLogger.Debugf("MSP configuration file not found at [%s]: [%s]", configFile, err)
+	}
+
 	// Set FabricCryptoConfig
 	cryptoConfig := &msp.FabricCryptoConfig{
 		SignatureHashFamily:            bccsp.SHA2,
@@ -487,16 +582,17 @@ func GetCLMspConfig(dir string, ID string, sigid *msp.SigningIdentityInfo) (*msp
 
 	// Compose CLMSPConfig
 	fmspconf := &msp.CLMSPConfig{
-		Admins:                        admincert,
-		KGCPubs:                       kgcpubs,
-		IntermediateCerts:             intermediatepubs,
+		Admins:  admincert,
+		KGCPubs: kgcpubs,
+		//IntermediateCerts:             intermediatepubs,
 		CLSigningIdentity:             sigid,
 		Name:                          ID,
-		OrganizationalUnitIdentifiers: nil,
+		OrganizationalUnitIdentifiers: ouis,
 		RevocationList:                crls,
 		CryptoConfig:                  cryptoConfig,
 		TlsRootCerts:                  tlsCACerts,
 		TlsIntermediateCerts:          tlsIntermediateCerts,
+		FabricNodeOus:                 nodeOUs,
 	}
 
 	fmpsjs, _ := proto.Marshal(fmspconf)

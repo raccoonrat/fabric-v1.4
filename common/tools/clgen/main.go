@@ -107,7 +107,7 @@ PeerOrgs:
   # ---------------------------------------------------------------------------
   - Name: Org1
     Domain: org1.example.com
-    EnableNodeOUs: false
+    EnableNodeOUs: true
 
     # ---------------------------------------------------------------------------
     # "CA"
@@ -200,7 +200,7 @@ PeerOrgs:
   # ---------------------------------------------------------------------------
   - Name: Org2
     Domain: org2.example.com
-    EnableNodeOUs: false
+    EnableNodeOUs: true
     Template:
       Count: 1
     Users:

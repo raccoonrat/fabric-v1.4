@@ -15,7 +15,6 @@ import (
 	"encoding/asn1"
 	"encoding/hex"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/big"
@@ -26,6 +25,7 @@ import (
 	"github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric/bccsp/factory"
 	"github.com/hyperledger/fabric/bccsp/signer"
+	"github.com/pkg/errors"
 )
 
 type pkcs8Info struct {
@@ -150,8 +150,8 @@ func LoadKGCMasterKey(keystorePath string) (*ecdsa.PrivateKey, error) {
 	}
 
 	err = filepath.Walk(keystorePath, walkFunc)
-	if err != nil {
-		return nil, err
+	if (err != nil) || (priv == nil) {
+		return nil, errors.Wrapf(err, "could not load a valid sk from directory %s", keystorePath)
 	}
 
 	return priv, err
@@ -235,7 +235,7 @@ func KGCGeneratePrivateKey(keystorePath string) (bccsp.Key, error) {
 
 func BccspKey2ecdsaKey(bkey bccsp.Key) (*ecdsa.PrivateKey, error) {
 	var key *ecdsa.PrivateKey
-	//key.PublicKey.Curve = elliptic.P256()
+	key.PublicKey.Curve = elliptic.P256()
 	buffer, err := bkey.Bytes()
 	if err != nil {
 		fmt.Println("error in copying buffer")
@@ -284,10 +284,10 @@ func GenFinalKeyPair(keystorePath, name string, ClientPrivateKey *ecdsa.PrivateK
 	finalPrivateKey := new(ecdsa.PrivateKey)
 	finalPrivateKey.Curve = ClientPrivateKey.Curve
 	dA, err := GenFinalKeyPairInternal(name, ClientPrivateKey, PartialPrivateKey, PartialPublicKey)
-	finalPrivateKey.D = dA
 	if err != nil {
 		return err
 	}
+	finalPrivateKey.D = dA
 
 	//write Final private key to file
 	err = storePrivateKey(keystorePath, finalPrivateKey)

@@ -60,7 +60,7 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 	*/
 	// get keystore path
 	keystore := filepath.Join(mspDir, "keystore")
-	clientxstore := filepath.Join(mspDir, "keystore", "client_x")
+	clientxstore := filepath.Join(mspDir, "client_x")
 
 	// generate x
 	priv, _, err := csp.GeneratePrivateKey(clientxstore)
@@ -76,18 +76,22 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 
 	//kgc generate partial keys
 	partialkey, err := signKGC.KGCGenPartialKey(filepath.Join(mspDir, "signcerts"),
-		name, ecPubKey, signKGC.MasterKey)
+		name, ecPubKey)
 
 	if err != nil {
 		return err
 	}
 
-	//client generate final key
+	//client load random number x
 	epriv, err := csp.LoadCLPrivateKey(clientxstore, priv.SKI())
 	if err != nil {
 		return err
 	}
-	err = csp.GenFinalKeyPair(keystore, name, epriv, partialkey.PartialPrivateKey.Bytes(), partialkey.PartialPublickKey.Bytes())
+	//remove client_x folder for current version
+	os.RemoveAll(clientxstore)
+
+	//client generate final key
+	err = csp.GenFinalKeyPair(keystore, name, epriv, partialkey.PartialPrivateKey.Bytes(), partialkey.PABytes())
 	if err != nil {
 		return err
 	}
@@ -118,7 +122,7 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 	// we leave a valid admin for now for the sake
 	// of unit tests
 	err = MasterPubExport(filepath.Join(mspDir, "admincerts", name+"-PA.pem"),
-		partialkey.PartialPublickKey.Bytes())
+		partialkey.PABytes())
 	if err != nil {
 		return err
 	}
@@ -202,8 +206,8 @@ func GenerateVerifyingMSP(baseDir string, signKGC *kgc.KGC, tlsCA *ca.CA, nodeOU
 	if err != nil {
 		return err
 	}
-	_, err = signKGC.KGCGenPartialKey(filepath.Join(baseDir, "admincerts"), signKGC.Name,
-		ecPubKey, signKGC.MasterKey)
+	_, err = signKGC.KGCGenPartialKey(filepath.Join(baseDir, "admincerts"), "TempAdmin",
+		ecPubKey)
 	if err != nil {
 		return err
 	}
@@ -223,7 +227,7 @@ func createFolderStructure(rootDir string, local bool) error {
 	if local {
 		folders = append(folders, filepath.Join(rootDir, "keystore"),
 			filepath.Join(rootDir, "signcerts"))
-		folders = append(folders, filepath.Join(rootDir, "keystore", "client_x"))
+		folders = append(folders, filepath.Join(rootDir, "client_x"))
 	}
 
 	for _, folder := range folders {

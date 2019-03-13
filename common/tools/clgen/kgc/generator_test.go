@@ -3,145 +3,114 @@ Copyright IBM Corp. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 */
-package kgc
+package kgc_test
 
 import (
 	"crypto/ecdsa"
-	"math/big"
-	"reflect"
+	"encoding/pem"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/hyperledger/fabric/common/tools/clgen/csp"
+	"github.com/hyperledger/fabric/common/tools/clgen/kgc"
+	"github.com/stretchr/testify/assert"
 )
 
+const (
+	testKGCName            = "root"
+	testOrganizationalUnit = "Hyperledger Fabric"
+	testID                 = "Alice"
+)
+
+var testDir = filepath.Join(os.TempDir(), "kgc-test")
+
 func TestNewKGC(t *testing.T) {
-	type args struct {
-		baseDir string
-		org     string
-		name    string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    *KGC
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewKGC(tt.args.baseDir, tt.args.org, tt.args.name)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("NewKGC() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewKGC() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+	kgcDir := filepath.Join(testDir, "kgc")
+	rootKGC, err := kgc.NewKGC(kgcDir, testOrganizationalUnit, testKGCName)
+	assert.NoError(t, err, "Error generating KGC")
+	assert.NotNil(t, rootKGC, "Failed to return KGC")
+	assert.NotNil(t, rootKGC.RawPub, "RawPub should not be empty")
+	assert.IsType(t, &ecdsa.PrivateKey{}, rootKGC.MasterKey,
+		"rootKGC.MasterKey should be type ecdsa.PrivateKey")
+	assert.IsType(t, &ecdsa.PublicKey{}, rootKGC.MasterPub,
+		"rootKGC.MasterPub should be type ecdsa.PublicKey")
+
+	// check to make sure the root kgc public key was stored
+	pemFile := filepath.Join(kgcDir, testKGCName+"-pubkey.pem")
+	assert.Equal(t, true, checkForFile(pemFile),
+		"Expected to find file "+pemFile)
+
+	assert.NotEmpty(t, rootKGC.Name, "name cannot be empty.")
+	assert.Equal(t, testKGCName, rootKGC.Name, "Failed to match Name")
+
+	assert.NotEmpty(t, rootKGC.Organization, "Organization cannot be empty.")
+	assert.Equal(t, testOrganizationalUnit, rootKGC.Organization, "Failed to match OrganizationalUnit")
+
+	cleanup(testDir)
 }
 
-func TestKGC_KGCGenPartialKey(t *testing.T) {
-	type fields struct {
-		Name         string
-		MasterKey    *ecdsa.PrivateKey
-		MasterPub    *ecdsa.PublicKey
-		RawPub       []byte
-		Organization string
-	}
-	type args struct {
-		baseDir string
-		ID      string
-		XA      *ecdsa.PublicKey
-		s       *ecdsa.PrivateKey
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    *PartialKey
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			kgc := &KGC{
-				Name:         tt.fields.Name,
-				MasterKey:    tt.fields.MasterKey,
-				MasterPub:    tt.fields.MasterPub,
-				RawPub:       tt.fields.RawPub,
-				Organization: tt.fields.Organization,
-			}
-			got, err := kgc.KGCGenPartialKey(tt.args.baseDir, tt.args.ID, tt.args.XA, tt.args.s)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("KGC.KGCGenPartialKey() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("KGC.KGCGenPartialKey() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+func TestKGCGenPartialKey(t *testing.T) {
+	//	baseDir, ID string, XA *ecdsa.PublicKey, s *ecdsa.PrivateKey) (*PartialKey, error)
+
+	kgcDir := filepath.Join(testDir, "kgc")
+	certDir := filepath.Join(testDir, "certs")
+
+	//create KGC
+	rootKGC, err := kgc.NewKGC(kgcDir, testOrganizationalUnit, testKGCName)
+	assert.NoError(t, err, "Error generating KGC")
+
+	// generate x
+	priv, _, err := csp.GeneratePrivateKey(certDir)
+	assert.NoError(t, err, "Failed to generate client random x")
+
+	// get XA
+	ecPubKey, err := csp.GetECPublicKey(priv)
+	assert.NoError(t, err, "Failed to generate XA")
+	assert.NotNil(t, ecPubKey, "Failed to generate XA")
+
+	//run
+	partialK, err := rootKGC.KGCGenPartialKey(certDir, testID, ecPubKey)
+	assert.NoError(t, err, "Failed to generate partial key")
+
+	//check to make sure the partial key was stored
+	pemFile := filepath.Join(certDir, testID+"-PA.pem")
+	assert.Equal(t, true, checkForFile(pemFile),
+		"Expected to find file "+pemFile)
+
+	//load the pem file and compare
+	rawPubKey, err := ioutil.ReadFile(pemFile)
+	block, _ := pem.Decode(rawPubKey)
+	assert.Equal(t, block.Bytes, partialK.PABytes(), "PA pem file not match")
+
+	cleanup(testDir)
 }
 
-func TestKGCGenPartialKeyInternal(t *testing.T) {
-	type args struct {
-		ID string
-		XA *ecdsa.PublicKey
-		s  *ecdsa.PrivateKey
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    *big.Int
-		want1   *big.Int
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, got1, err := KGCGenPartialKeyInternal(tt.args.ID, tt.args.XA, tt.args.s)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("KGCGenPartialKeyInternal() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("KGCGenPartialKeyInternal() got = %v, want %v", got, tt.want)
-			}
-			if !reflect.DeepEqual(got1, tt.want1) {
-				t.Errorf("KGCGenPartialKeyInternal() got1 = %v, want %v", got1, tt.want1)
-			}
-		})
-	}
-}
-
+//func LoadKGCPublicKey(certPath string) (*ecdsa.PublicKey, []byte, error) {
 func TestLoadKGCPublicKey(t *testing.T) {
-	type args struct {
-		certPath string
+	kgcDir := filepath.Join(testDir, "kgc")
+
+	//create KGC
+	rootKGC, err := kgc.NewKGC(kgcDir, testOrganizationalUnit, testKGCName)
+	assert.NoError(t, err, "Error generating KGC")
+
+	//run
+	PubKey, raw, err := kgc.LoadKGCPublicKey(kgcDir)
+	assert.NoError(t, err, "Error loading KGC public key")
+	assert.Equal(t, PubKey, rootKGC.MasterPub, "KGC public key not match")
+	assert.Equal(t, raw, rootKGC.RawPub, "KGC raw public key not match")
+
+	cleanup(testDir)
+}
+
+func cleanup(dir string) {
+	os.RemoveAll(dir)
+}
+
+func checkForFile(file string) bool {
+	if _, err := os.Stat(file); os.IsNotExist(err) {
+		return false
 	}
-	tests := []struct {
-		name    string
-		args    args
-		want    *ecdsa.PublicKey
-		want1   []byte
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, got1, err := LoadKGCPublicKey(tt.args.certPath)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("LoadKGCPublicKey() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("LoadKGCPublicKey() got = %v, want %v", got, tt.want)
-			}
-			if !reflect.DeepEqual(got1, tt.want1) {
-				t.Errorf("LoadKGCPublicKey() got1 = %v, want %v", got1, tt.want1)
-			}
-		})
-	}
+	return true
 }

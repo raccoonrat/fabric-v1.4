@@ -7,14 +7,15 @@ SPDX-License-Identifier: Apache-2.0
 package msp
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/pem"
 	"time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric/bccsp"
-	clbccsp "github.com/hyperledger/fabric/bccsp/cl"
 	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/protos/msp"
 	m "github.com/hyperledger/fabric/protos/msp"
@@ -32,34 +33,27 @@ type clidentity struct {
 	// id contains the identifier (MSPID and identity identifier) for this instance
 	id *IdentityIdentifier
 
-	// OrganizationUnit governs the organization of the Principal
-	// field of a policy principal when a specific organization unity members
-	// are to be defined within a policy principal.
-	OU *m.OrganizationUnit
-
-	//MSPRole governs the organization of the Principal
-	// field of an MSPPrincipal when it aims to define one of the
-	// two dedicated roles within an MSP: Admin and Members.
-	Role *m.MSPRole
-
 	// reference to the MSP that "owns" this identity
 	msp *clmsp
 }
 
-func newclIdentity(pk bccsp.Key, msp *clmsp) (clidentity, error) {
+func newclIdentity(PA []byte, msp *clmsp) (Identity, error) {
 	if mspclIdentityLogger.IsEnabledFor(zapcore.DebugLevel) {
-		mspclIdentityLogger.Debugf("Creating identity instance for KGC %s", pk.SKI())
+		mspclIdentityLogger.Debugf("Creating identity instance for KGC")
 	}
 
-	// Compute identity identifier
+	if PA == nil {
+		return nil, errors.New("failed getting PA")
+	}
 
 	// Use the hash of the identity's certificate as id in the IdentityIdentifier
 	hashOpt, err := bccsp.GetHashOpt(msp.cryptoConfig.IdentityIdentifierHashFunction)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed getting hash function options")
 	}
-	raw, err := pk.Bytes()
-	digest, err := msp.csp.Hash(raw, hashOpt)
+
+	// Compute identity identifier
+	digest, err := msp.csp.Hash(PA, hashOpt)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed hashing raw pubs to compute the id of the IdentityIdentifier")
 	}
@@ -99,23 +93,39 @@ func (id *clidentity) Validate() error {
 
 // GetOrganizationalUnits returns the OU for this instance
 func (id *clidentity) GetOrganizationalUnits() []*OUIdentifier {
-	if id.msp.rootPubs == nil {
+
+	if id.msp.ouIdentifiers == nil {
+		mspIdentityLogger.Errorf("Failed to get OrganizationalUnitIdentifier in GetOrganizationalUnits")
 		return nil
 	}
 
 	res := []*OUIdentifier{}
-	for kgcpub := range id.msp.rootPubs {
-		// we use the (serialized) root public key of this MSP as the CertifiersIdentifier
-		certifiersIdentifier, err := kgcpub.Bytes()
-		if err != nil {
-			mspIdentityLogger.Errorf("Failed to marshal kgcpub in GetOrganizationalUnits: %s", err)
+
+	for k, v := range id.msp.ouIdentifiers {
+		if v == nil {
+			mspIdentityLogger.Errorf("Failed to get OrganizationalUnitIdentifier in GetOrganizationalUnits")
 			return nil
 		}
 		res = append(res, &OUIdentifier{
-			CertifiersIdentifier:         certifiersIdentifier,
-			OrganizationalUnitIdentifier: id.OU.OrganizationalUnitIdentifier,
+			CertifiersIdentifier:         v[0],
+			OrganizationalUnitIdentifier: k,
+		})
+
+		cid, err := id.msp.getPAIdentifier(id)
+		if err != nil {
+			mspIdentityLogger.Errorf("Failed to get PA Identifier")
+			return nil
+		}
+		res = append(res, &OUIdentifier{
+			CertifiersIdentifier:         cid,
+			OrganizationalUnitIdentifier: k,
 		})
 	}
+
+	if len(res) == 0 {
+		return nil
+	}
+
 	return res
 }
 
@@ -131,7 +141,13 @@ func (id *clidentity) Anonymous() bool {
 func NewSerializedclIdentity(mspID string, certPEM []byte) ([]byte, error) {
 	// We serialize identities by prepending the MSPID
 	// and appending the x509 cert in PEM format
-	sId := &msp.SerializedIdentity{Mspid: mspID, IdBytes: certPEM}
+	bl, _ := pem.Decode(certPEM)
+	serialized := &m.SerializedIBPCLAIdentity{}
+	serialized.PA = bl.Bytes
+
+	CLIDBytes, err := proto.Marshal(serialized)
+
+	sId := &msp.SerializedIdentity{Mspid: mspID, IdBytes: CLIDBytes}
 	raw, err := proto.Marshal(sId)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed serializing clidentity [%s][%X]", mspID, certPEM)
@@ -156,19 +172,34 @@ func (id *clidentity) Verify(msg []byte, sig []byte) error {
 		return errors.WithMessage(err, "failed computing digest")
 	}
 
+	//hard-coding to SHA2 according to clgen
+	hashOptID, err := id.getHashOpt(bccsp.SHA2)
+
+	//compute HID
+	var buffer bytes.Buffer
+	buffer.Write([]byte(id.msp.name))
+	buffer.Write(id.PA)
+	HID, err := id.msp.csp.Hash(buffer.Bytes(), hashOptID)
+	if err != nil {
+		return errors.WithMessage(err, "failed computing HID")
+	}
+
 	if mspclIdentityLogger.IsEnabledFor(zapcore.DebugLevel) {
 		mspclIdentityLogger.Debugf("IBPCLA Verify: digest = %s", hex.Dump(digest))
 		mspclIdentityLogger.Debugf("IBPCLA Verify: sig = %s", hex.Dump(sig))
 	}
 
-	//recover pk from PA and id
-	pk, err := clbccsp.RecoverPub(id.msp.rootPubs[0], id.PA, id.msp.name, hashOpt)
-	if err != nil {
-		return errors.WithMessage(err, "failed recovering pub")
-	}
-
 	//verify signature
-	valid, err := id.msp.csp.Verify(pk, sig, digest, nil)
+	valid, err := id.msp.csp.Verify(
+		nil,
+		sig,
+		digest,
+		&bccsp.CLVerifierOpts{
+			KGCPublicKey: id.msp.rootPubs[0],
+			HID:          HID,
+			PA:           id.PA,
+		},
+	)
 	if err != nil {
 		return errors.WithMessage(err, "could not determine the validity of the signature")
 	} else if !valid {
@@ -182,23 +213,12 @@ func (id *clidentity) Verify(msg []byte, sig []byte) error {
 func (id *clidentity) Serialize() ([]byte, error) {
 	// mspclIdentityLogger.Infof("Serializing clidentity %s", id.id)
 	serialized := &m.SerializedIBPCLAIdentity{}
-	ouBytes, err := proto.Marshal(id.OU)
-	if err != nil {
-		return nil, errors.Wrapf(err, "could not marshal OU of identity %s", id.id)
-	}
-
-	roleBytes, err := proto.Marshal(id.Role)
-	if err != nil {
-		return nil, errors.Wrapf(err, "could not marshal role of identity %s", id.id)
-	}
 
 	serialized.PA = id.PA
-	serialized.Ou = ouBytes
-	serialized.Role = roleBytes
 
 	CLIDBytes, err := proto.Marshal(serialized)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "could not marshal a IdBytes for clidentity")
 	}
 
 	sId := &msp.SerializedIdentity{Mspid: id.id.Mspid, IdBytes: CLIDBytes}
@@ -222,19 +242,24 @@ func (id *clidentity) getHashOpt(hashFamily string) (bccsp.HashOpts, error) {
 
 type clsigningidentity struct {
 	// we embed everything from a base identity
-	clidentity
+	*clidentity
 
 	// signer corresponds to the object that can produce signatures from this identity
 	signer crypto.Signer
 }
 
-func newCLSigningIdentity(pk bccsp.Key, signer crypto.Signer, msp *bccspmsp) (SigningIdentity, error) {
+func newCLSigningIdentity(PA []byte, signer crypto.Signer, msp *clmsp) (SigningIdentity, error) {
 	//mspclIdentityLogger.Infof("Creating cl signing identity instance for ID %s", id)
-	mspId, err := newclIdentity(pk, msp)
+	block, _ := pem.Decode(PA)
+	if block == nil {
+		return nil, errors.New("invalid PA, failed decoding pem Bytes")
+
+	}
+	mspId, err := newclIdentity(block.Bytes, msp)
 	if err != nil {
 		return nil, err
 	}
-	return &clsigningidentity{clidentity: *mspId.(*clidentity), signer: signer}, nil
+	return &clsigningidentity{clidentity: mspId.(*clidentity), signer: signer}, nil
 }
 
 // Sign produces a signature over msg, signed by this instance
@@ -266,9 +291,35 @@ func (id *clsigningidentity) Sign(msg []byte) ([]byte, error) {
 // GetPublicVersion returns the public version of this identity,
 // namely, the one that is only able to verify messages and not sign them
 func (id *clsigningidentity) GetPublicVersion() Identity {
-	return &id.clidentity
+	return id.clidentity
 }
 
-func (id *clidentity) verifyProof() error {
+func (id *clidentity) validateIdentity() error {
+	// Check that the identity's OUs are compatible with those recognized by this MSP,
+	// meaning that the intersection is not empty.
+	if len(id.msp.ouIdentifiers) > 0 {
+		found := false
+
+		for _, OU := range id.GetOrganizationalUnits() {
+			certificationIDs, exists := id.msp.ouIdentifiers[OU.OrganizationalUnitIdentifier]
+
+			if exists {
+				for _, certificationID := range certificationIDs {
+					if bytes.Equal(certificationID, OU.CertifiersIdentifier) {
+						found = true
+						break
+					}
+				}
+			}
+		}
+
+		if !found {
+			if len(id.GetOrganizationalUnits()) == 0 {
+				return errors.New("the identity certificate does not contain an Organizational Unit (OU)")
+			}
+			return errors.Errorf("none of the identity's organizational units [%v] are in MSP %s", id.GetOrganizationalUnits(), id.msp.name)
+		}
+	}
+
 	return nil
 }

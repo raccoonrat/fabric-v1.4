@@ -256,4 +256,7 @@ message CLMSPSignerConfig {
 
     // sk is the secret key of the default signer, corresponding to credential Cred
     bytes sk = 1;
+
+    // PA is the vice identity of the signer
+    bytes PA = 2;
 }
