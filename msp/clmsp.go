@@ -197,6 +197,7 @@ func (msp *clmsp) getSigningIdentityFromConf(sidInfo *m.CLMSPSignerConfig) (Sign
 		return nil, errors.WithMessage(err, "getIdentityFromBytes error: Failed initializing bccspCryptoSigner")
 	}
 
+	// to do: add ID
 	return newCLSigningIdentity(sidInfo.PA, peerSigner, msp)
 }
 

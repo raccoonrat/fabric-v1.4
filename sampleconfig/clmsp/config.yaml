@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+ID: peer0.org1.example.com
 
 OrganizationalUnitIdentifiers:
   - Certificate: "kgcpubs/kgc.org1.example.com-pubkey.pem"

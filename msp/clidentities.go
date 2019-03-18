@@ -159,7 +159,7 @@ func NewSerializedclIdentity(mspID string, certPEM []byte) ([]byte, error) {
 // to determine whether this clidentity produced the
 // signature; it returns nil if so or an error otherwise
 func (id *clidentity) Verify(msg []byte, sig []byte) error {
-	// mspclIdentityLogger.Infof("Verifying signature")
+	//mspclIdentityLogger.Infof("Verifying signature")
 
 	// Compute Hash
 	hashOpt, err := id.getHashOpt(id.msp.cryptoConfig.SignatureHashFamily)
@@ -177,7 +177,7 @@ func (id *clidentity) Verify(msg []byte, sig []byte) error {
 
 	//compute HID
 	var buffer bytes.Buffer
-	buffer.Write([]byte(id.msp.name))
+	buffer.Write([]byte(id.id.Mspid))
 	buffer.Write(id.PA)
 	HID, err := id.msp.csp.Hash(buffer.Bytes(), hashOptID)
 	if err != nil {
@@ -188,7 +188,13 @@ func (id *clidentity) Verify(msg []byte, sig []byte) error {
 		mspclIdentityLogger.Debugf("IBPCLA Verify: digest = %s", hex.Dump(digest))
 		mspclIdentityLogger.Debugf("IBPCLA Verify: sig = %s", hex.Dump(sig))
 	}
-
+	/*
+		mspclIdentityLogger.Infof("+++++++++++++++++IBPCLA Verify: digest = %s", hex.Dump(digest))
+		mspclIdentityLogger.Infof("+++++++++++++++++IBPCLA Verify: sig = %s", hex.Dump(sig))
+		mspclIdentityLogger.Infof("+++++++++++++++++IBPCLA Verify: ID = %s", id.id.Mspid)
+		mspclIdentityLogger.Infof("+++++++++++++++++IBPCLA Verify: HID = %s", hex.Dump(HID))
+		mspclIdentityLogger.Infof("+++++++++++++++++IBPCLA Verify: PA = %s", hex.Dump(id.PA))
+	*/
 	//verify signature
 	valid, err := id.msp.csp.Verify(
 		nil,

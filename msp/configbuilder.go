@@ -55,6 +55,19 @@ type Configuration struct {
 	NodeOUs *NodeOUs `yaml:"NodeOUs,omitempty"`
 }
 
+// CLConfiguration represents the accessory configuration an MSP can be equipped with.
+// By default, this configuration is stored in a yaml file
+type CLConfiguration struct {
+	//ID is the representation of the local msp
+	ID string `yaml:"ID,omitempty"`
+	// OrganizationalUnitIdentifiers is a list of OUs. If this is set, the MSP
+	// will consider an identity valid only it contains at least one of these OUs
+	OrganizationalUnitIdentifiers []*OrganizationalUnitIdentifiersConfiguration `yaml:"OrganizationalUnitIdentifiers,omitempty"`
+	// NodeOUs enables the MSP to tell apart clients, peers and orderers based
+	// on the identity's OU.
+	NodeOUs *NodeOUs `yaml:"NodeOUs,omitempty"`
+}
+
 func readFile(file string) ([]byte, error) {
 	fileCont, err := ioutil.ReadFile(file)
 	if err != nil {
@@ -194,6 +207,7 @@ func GetLocalMspConfig(dir string, bccspConfig *factory.FactoryOpts, ID string) 
 }
 
 func GetLocalCLMspConfig(dir string, bccspConfig *factory.FactoryOpts, ID string) (*msp.MSPConfig, error) {
+	fmt.Println("-------------", dir)
 	signcertDir := filepath.Join(dir, signcerts)
 	keystoreDir := filepath.Join(dir, keystore)
 	bccspConfig = SetupBCCSPKeystoreConfig(bccspConfig, keystoreDir)
@@ -208,6 +222,23 @@ func GetLocalCLMspConfig(dir string, bccspConfig *factory.FactoryOpts, ID string
 		return nil, errors.Wrapf(err, "could not load a valid vice identity from directory %s", signcertDir)
 	}
 
+	//load ID
+	configFile := filepath.Join(dir, configfilename)
+	_, err = os.Stat(configFile)
+	if err != nil {
+		return nil, errors.Wrapf(err, "could not load a valid identity from configfile")
+	}
+	// load the file, if there is a failure in loading it then
+	// return an error
+	raw, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed loading configuration file at [%s]", configFile)
+	}
+	clconfiguration := CLConfiguration{}
+	err = yaml.Unmarshal(raw, &clconfiguration)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed unmarshalling configuration file at [%s]", configFile)
+	}
 	//get Sk
 	var sk []byte
 	walkFunc := func(path string, info os.FileInfo, err error) error {
@@ -227,7 +258,8 @@ func GetLocalCLMspConfig(dir string, bccspConfig *factory.FactoryOpts, ID string
 
 	sigid := &msp.CLMSPSignerConfig{Sk: sk, PA: PA[0]}
 
-	return GetCLMspConfig(dir, ID, sigid)
+	//replace ID with clconfigurationID
+	return GetCLMspConfig(dir, clconfiguration.ID, sigid)
 }
 
 // GetVerifyingMspConfig returns an MSP config given directory, ID and type

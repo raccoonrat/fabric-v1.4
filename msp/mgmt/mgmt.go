@@ -12,6 +12,7 @@ import (
 
 	"github.com/hyperledger/fabric/bccsp/factory"
 	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric/core/config"
 	"github.com/hyperledger/fabric/msp"
 	"github.com/hyperledger/fabric/msp/cache"
 	"github.com/pkg/errors"
@@ -38,7 +39,22 @@ func LoadLocalMsp(dir string, bccspConfig *factory.FactoryOpts, mspID string) er
 		return errors.New("the local MSP must have an ID")
 	}
 
-	conf, err := msp.GetLocalMspConfig(dir, bccspConfig, mspID)
+	err := config.InitViper(nil, "core")
+	if err != nil {
+		return nil
+	}
+
+	err = viper.ReadInConfig() // Find and read the config file
+	if err != nil {            // Handle errors reading the config file
+		return nil
+	}
+
+	mspType := viper.GetString("peer.localMspType")
+	if mspType == "" {
+		mspType = msp.ProviderTypeToString(msp.FABRIC)
+	}
+
+	conf, err := msp.GetLocalMspConfigWithType(dir, bccspConfig, mspID, mspType)
 	if err != nil {
 		return err
 	}
@@ -144,6 +160,7 @@ func GetLocalMSP() msp.MSP {
 }
 
 func loadLocaMSP() msp.MSP {
+
 	// determine the type of MSP (by default, we'll use bccspMSP)
 	mspType := viper.GetString("peer.localMspType")
 	if mspType == "" {
@@ -171,6 +188,8 @@ func loadLocaMSP() msp.MSP {
 			mspLogger.Fatalf("Failed to initialize local MSP, received err %+v", err)
 		}
 	case msp.ProviderTypeToString(msp.IDEMIX):
+		// Do nothing
+	case msp.ProviderTypeToString(msp.IBPCLA):
 		// Do nothing
 	default:
 		panic("msp type " + mspType + " unknown")

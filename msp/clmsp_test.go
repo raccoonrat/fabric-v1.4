@@ -45,6 +45,7 @@ func TestCLMSPNormal(t *testing.T) {
 	}
 
 	conf1, err := GetLocalCLMspConfig(mspDir, nil, SampleOrg)
+	fmt.Println("-----------------")
 	if err != nil {
 		fmt.Printf("Setup should have succeeded, got err %s instead", err)
 		os.Exit(-1)

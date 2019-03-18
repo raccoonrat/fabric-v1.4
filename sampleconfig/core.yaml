@@ -271,7 +271,7 @@ peer:
                 KeyStore:
 
     # Path on the file system where peer will find MSP local configurations
-    mspConfigPath: msp
+    mspConfigPath: clmsp
 
     # Identifier of the local MSP
     # ----!!!!IMPORTANT!!!-!!!IMPORTANT!!!-!!!IMPORTANT!!!!----
@@ -300,7 +300,7 @@ peer:
         reConnectBackoffThreshold: 3600s
 
     # Type for the local MSP - by default it's of type bccsp
-    localMspType: bccsp
+    localMspType: ibpcla
 
     # Used with Go profiling tools only in none production environment. In
     # production, it should be disabled (eg enabled: false)

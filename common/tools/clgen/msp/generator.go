@@ -11,6 +11,7 @@ import (
 	"encoding/pem"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 
@@ -110,9 +111,8 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 	}
 
 	// generate config.yaml if required
-	if nodeOUs && nodeType == PEER {
-		exportConfig(mspDir, "kgcpubs/"+x509Filename(signKGC.Name), true)
-	}
+	EnableNode := nodeOUs && nodeType == PEER
+	exportConfigID(mspDir, "kgcpubs/"+MasterPubFilename(signKGC.Name), EnableNode)
 
 	// the signing identity goes into admincerts.
 	// This means that the signing identity
@@ -191,7 +191,7 @@ func GenerateVerifyingMSP(baseDir string, signKGC *kgc.KGC, tlsCA *ca.CA, nodeOU
 
 	// generate config.yaml if required
 	if nodeOUs {
-		exportConfig(baseDir, "kgcpubs/"+x509Filename(signKGC.Name), true)
+		exportConfig(baseDir, "kgcpubs/"+MasterPubFilename(signKGC.Name), true)
 	}
 
 	// create a throwaway PA to act as an admin PA
@@ -286,6 +286,41 @@ func exportConfig(mspDir, kgcFile string, enable bool) error {
 				OrganizationalUnitIdentifier: PEEROU,
 			},
 		},
+	}
+
+	configBytes, err := yaml.Marshal(config)
+	if err != nil {
+		return err
+	}
+
+	file, err := os.Create(filepath.Join(mspDir, "config.yaml"))
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+	_, err = file.WriteString(string(configBytes))
+
+	return err
+}
+
+func exportConfigID(mspDir, kgcFile string, enable bool) error {
+	sl := strings.Split(mspDir, "/")
+	var config = &fabricmsp.CLConfiguration{
+		ID: sl[len(sl)-2],
+	}
+	if enable {
+		config.NodeOUs = &fabricmsp.NodeOUs{
+			Enable: enable,
+			ClientOUIdentifier: &fabricmsp.OrganizationalUnitIdentifiersConfiguration{
+				Certificate:                  kgcFile,
+				OrganizationalUnitIdentifier: CLIENTOU,
+			},
+			PeerOUIdentifier: &fabricmsp.OrganizationalUnitIdentifiersConfiguration{
+				Certificate:                  kgcFile,
+				OrganizationalUnitIdentifier: PEEROU,
+			},
+		}
 	}
 
 	configBytes, err := yaml.Marshal(config)
