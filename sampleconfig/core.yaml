@@ -300,7 +300,7 @@ peer:
         reConnectBackoffThreshold: 3600s
 
     # Type for the local MSP - by default it's of type bccsp
-    localMspType: ibpcla
+    localMspType: ibpcla 
 
     # Used with Go profiling tools only in none production environment. In
     # production, it should be disabled (eg enabled: false)
@@ -539,7 +539,7 @@ chaincode:
     # Logging section for the chaincode container
     logging:
       # Default level for all loggers within the chaincode container
-      level:  info
+      level: debug 
       # Override default level for the 'shim' logger
       shim:   warning
       # Format for the chaincode container logs

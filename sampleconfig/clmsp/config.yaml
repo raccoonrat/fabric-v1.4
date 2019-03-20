@@ -1,19 +1,9 @@
-# Copyright IBM Corp. All Rights Reserved.
-#
-# SPDX-License-Identifier: Apache-2.0
-#
 ID: peer0.org1.example.com
-
-OrganizationalUnitIdentifiers:
-  - Certificate: "kgcpubs/kgc.org1.example.com-pubkey.pem"
-    OrganizationalUnitIdentifier: "COP"
-
 NodeOUs:
-  Enable: false
+  Enable: true
   ClientOUIdentifier:
-    # if Certificate is empty, then the certifier identifier will not be enforced
-    Certificate: "kgcpubs/kgc.org1.example.com-pubkey.pem"
-    OrganizationalUnitIdentifier: "OU_client"
+    Certificate: kgcpubs/kgc.org1.example.com-pubkey.pem
+    OrganizationalUnitIdentifier: client
   PeerOUIdentifier:
-    Certificate: "kgcpubs/kgc.org1.example.com-pubkey.pem"
-    OrganizationalUnitIdentifier: "OU_peer"
+    Certificate: kgcpubs/kgc.org1.example.com-pubkey.pem
+    OrganizationalUnitIdentifier: peer
