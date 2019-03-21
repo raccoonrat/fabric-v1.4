@@ -55,7 +55,7 @@ message SerializedIdemixIdentity {
 message SerializedIBPCLAIdentity {
 	// PA is the vice identity, it is an elliptic curve point generated from KGC.
     	// It is a []byte representation of BIG.int with X coordinate along with Y coordinate
-    	// PA is used to recover public keys then verify signatures.
+    	// PA is used to recover public keys when verifying signatures.
 	bytes PA = 1;
 
     	// ou contains the organizational unit of the ibpcla identity
@@ -63,4 +63,7 @@ message SerializedIBPCLAIdentity {
 
     	// role contains the role of this identity (e.g., ADMIN or MEMBER)
     	bytes role = 3;
+
+    	// ID represents the identity
+    	string ID = 4;
 }

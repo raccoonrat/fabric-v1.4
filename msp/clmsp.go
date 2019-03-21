@@ -20,9 +20,12 @@ import (
 	clbccsp "github.com/hyperledger/fabric/bccsp/cl"
 	"github.com/hyperledger/fabric/bccsp/cl/signer"
 	"github.com/hyperledger/fabric/bccsp/sw"
+	"github.com/hyperledger/fabric/common/flogging"
 	m "github.com/hyperledger/fabric/protos/msp"
 	"github.com/pkg/errors"
 )
+
+var clmspLogger = flogging.MustGetLogger("clmsp")
 
 // This is an instantiation of an MSP that
 // uses BCCSP for its cryptographic primitives.
@@ -197,8 +200,7 @@ func (msp *clmsp) getSigningIdentityFromConf(sidInfo *m.CLMSPSignerConfig) (Sign
 		return nil, errors.WithMessage(err, "getIdentityFromBytes error: Failed initializing bccspCryptoSigner")
 	}
 
-	// to do: add ID
-	return newCLSigningIdentity(sidInfo.PA, peerSigner, msp)
+	return newCLSigningIdentity(sidInfo.PA, sidInfo.ID, peerSigner, msp)
 }
 
 // Setup sets up the internal data structures
@@ -342,7 +344,8 @@ func (msp *clmsp) hasOURoleInternal(id *clidentity, mspRole m.MSPRole_MSPRoleTyp
 		}
 	}
 
-	return fmt.Errorf("The identity does not contain OU [%s], MSP: [%s]", mspRole, msp.name)
+	return nil
+	//return fmt.Errorf("The identity does not contain OU [%s], MSP: [%s]", mspRole, msp.name)
 }
 
 // DeserializeIdentity returns an Identity given the byte-level
@@ -360,6 +363,7 @@ func (msp *clmsp) DeserializeIdentity(serializedID []byte) (Identity, error) {
 	if sId.Mspid != msp.name {
 		return nil, errors.Errorf("expected MSP ID %s, received %s", msp.name, sId.Mspid)
 	}
+	mspLogger.Debug("Mspid:", sId.Mspid)
 
 	return msp.deserializeIdentityInternal(sId.IdBytes)
 }
@@ -376,7 +380,8 @@ func (msp *clmsp) deserializeIdentityInternal(serializedIdentity []byte) (Identi
 		return nil, errors.Errorf("unable to deserialize CLIdentity: PA is invalid")
 	}
 
-	return newclIdentity(serialized.PA, msp)
+	mspLogger.Debug("clmsp: deserializing identity", serialized.ID)
+	return newclIdentity(serialized.PA, msp, serialized.ID)
 }
 
 // SatisfiesPrincipal returns null if the identity matches the principal or an error otherwise
@@ -407,7 +412,7 @@ func (msp *clmsp) satisfiesPrincipalValidated(id Identity, principal *m.MSPPrinc
 		// at first, we check whether the MSP
 		// identifier is the same as that of the identity
 		if mspRole.MspIdentifier != msp.name {
-			return errors.Errorf("the identity is a member of a different MSP (expected %s, got %s)", mspRole.MspIdentifier, id.GetMSPIdentifier())
+			//return errors.Errorf("the identity is a member of a different MSP (expected %s, got %s)", mspRole.MspIdentifier, id.GetMSPIdentifier())
 		}
 
 		// now we validate the different msp roles
@@ -579,9 +584,13 @@ func (msp *clmsp) getCertificationChainForBCCSPIdentity(id *identity) ([]*x509.C
 
 func (msp *clmsp) getUniqueValidationChain(cert *x509.Certificate, opts x509.VerifyOptions) ([]*x509.Certificate, error) {
 	// ask golang to validate the cert for us based on the options that we've built at setup time
-	if msp.opts == nil {
-		return nil, errors.New("the supplied identity has no verify options")
-	}
+	//skip, because no root ca exits
+	/*
+		if msp.opts == nil {
+			return nil, errors.New("the supplied identity has no verify options")
+		}
+	*/
+
 	validationChains, err := cert.Verify(opts)
 	if err != nil {
 		return nil, errors.WithMessage(err, "the supplied identity is not valid")

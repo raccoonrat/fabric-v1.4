@@ -1107,7 +1107,7 @@ func TestCLIdentityPolicyPrincipalFails(t *testing.T) {
 	id, err := localMspCL.GetDefaultSigningIdentity()
 	assert.NoError(t, err)
 
-	sid, err := NewSerializedclIdentity("peer0.org1.example.com", []byte(otherPA))
+	sid, err := NewSerializedclIdentity("peer0.org1.example.com", SampleOrg, []byte(otherPA))
 	assert.NoError(t, err)
 
 	principal := &msp.MSPPrincipal{

@@ -259,4 +259,7 @@ message CLMSPSignerConfig {
 
     // PA is the vice identity of the signer
     bytes PA = 2;
+
+    // ID is the identity of the signer
+    string ID = 3;
 }

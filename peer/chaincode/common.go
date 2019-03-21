@@ -458,7 +458,7 @@ func ChaincodeInvokeOrQuery(
 	//  }
 	//}
 
-	tMap["key"] = []byte(transient)
+	//tMap["key"] = []byte(transient)
 	prop, txid, err := putils.CreateChaincodeProposalWithTxIDAndTransient(pcommon.HeaderType_ENDORSER_TRANSACTION, cID, invocation, creator, txID, tMap)
 	if err != nil {
 		return nil, errors.WithMessage(err, fmt.Sprintf("error creating proposal for %s", funcName))

@@ -207,7 +207,6 @@ func GetLocalMspConfig(dir string, bccspConfig *factory.FactoryOpts, ID string) 
 }
 
 func GetLocalCLMspConfig(dir string, bccspConfig *factory.FactoryOpts, ID string) (*msp.MSPConfig, error) {
-	fmt.Println("-------------", dir)
 	signcertDir := filepath.Join(dir, signcerts)
 	keystoreDir := filepath.Join(dir, keystore)
 	bccspConfig = SetupBCCSPKeystoreConfig(bccspConfig, keystoreDir)
@@ -256,10 +255,9 @@ func GetLocalCLMspConfig(dir string, bccspConfig *factory.FactoryOpts, ID string
 		return nil, errors.Wrapf(err, "could not load a valid sk from directory %s", signcertDir)
 	}
 
-	sigid := &msp.CLMSPSignerConfig{Sk: sk, PA: PA[0]}
+	sigid := &msp.CLMSPSignerConfig{Sk: sk, PA: PA[0], ID: clconfiguration.ID}
 
-	//replace ID with clconfigurationID
-	return GetCLMspConfig(dir, clconfiguration.ID, sigid)
+	return GetCLMspConfig(dir, ID, sigid)
 }
 
 // GetVerifyingMspConfig returns an MSP config given directory, ID and type

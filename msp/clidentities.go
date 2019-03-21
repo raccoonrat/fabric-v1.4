@@ -35,9 +35,12 @@ type clidentity struct {
 
 	// reference to the MSP that "owns" this identity
 	msp *clmsp
+
+	//true ID
+	nameID string
 }
 
-func newclIdentity(PA []byte, msp *clmsp) (Identity, error) {
+func newclIdentity(PA []byte, msp *clmsp, ID string) (Identity, error) {
 	if mspclIdentityLogger.IsEnabledFor(zapcore.DebugLevel) {
 		mspclIdentityLogger.Debugf("Creating identity instance for KGC")
 	}
@@ -60,9 +63,12 @@ func newclIdentity(PA []byte, msp *clmsp) (Identity, error) {
 
 	id := &IdentityIdentifier{
 		Mspid: msp.name,
-		Id:    hex.EncodeToString(digest)}
+		Id:    hex.EncodeToString(digest),
+	}
 
-	return &clidentity{PA: PA, id: id, msp: msp}, nil
+	mspclIdentityLogger.Debugf("id.Mspid:", msp.name)
+	mspclIdentityLogger.Debugf("id.Id:", id.Id)
+	return &clidentity{PA: PA, id: id, msp: msp, nameID: ID}, nil
 }
 
 // ExpiresAt returns the time at which the Identity expires.
@@ -138,12 +144,13 @@ func (id *clidentity) Anonymous() bool {
 // having as content the passed mspID and x509 certificate in PEM format.
 // This method does not check the validity of certificate nor
 // any consistency of the mspID with it.
-func NewSerializedclIdentity(mspID string, certPEM []byte) ([]byte, error) {
+func NewSerializedclIdentity(mspID, nameID string, certPEM []byte) ([]byte, error) {
 	// We serialize identities by prepending the MSPID
 	// and appending the x509 cert in PEM format
 	bl, _ := pem.Decode(certPEM)
 	serialized := &m.SerializedIBPCLAIdentity{}
 	serialized.PA = bl.Bytes
+	serialized.ID = nameID
 
 	CLIDBytes, err := proto.Marshal(serialized)
 
@@ -177,7 +184,7 @@ func (id *clidentity) Verify(msg []byte, sig []byte) error {
 
 	//compute HID
 	var buffer bytes.Buffer
-	buffer.Write([]byte(id.id.Mspid))
+	buffer.Write([]byte(id.nameID))
 	buffer.Write(id.PA)
 	HID, err := id.msp.csp.Hash(buffer.Bytes(), hashOptID)
 	if err != nil {
@@ -188,13 +195,6 @@ func (id *clidentity) Verify(msg []byte, sig []byte) error {
 		mspclIdentityLogger.Debugf("IBPCLA Verify: digest = %s", hex.Dump(digest))
 		mspclIdentityLogger.Debugf("IBPCLA Verify: sig = %s", hex.Dump(sig))
 	}
-	/*
-		mspclIdentityLogger.Infof("+++++++++++++++++IBPCLA Verify: digest = %s", hex.Dump(digest))
-		mspclIdentityLogger.Infof("+++++++++++++++++IBPCLA Verify: sig = %s", hex.Dump(sig))
-		mspclIdentityLogger.Infof("+++++++++++++++++IBPCLA Verify: ID = %s", id.id.Mspid)
-		mspclIdentityLogger.Infof("+++++++++++++++++IBPCLA Verify: HID = %s", hex.Dump(HID))
-		mspclIdentityLogger.Infof("+++++++++++++++++IBPCLA Verify: PA = %s", hex.Dump(id.PA))
-	*/
 	//verify signature
 	valid, err := id.msp.csp.Verify(
 		nil,
@@ -221,6 +221,7 @@ func (id *clidentity) Serialize() ([]byte, error) {
 	serialized := &m.SerializedIBPCLAIdentity{}
 
 	serialized.PA = id.PA
+	serialized.ID = id.nameID
 
 	CLIDBytes, err := proto.Marshal(serialized)
 	if err != nil {
@@ -254,14 +255,14 @@ type clsigningidentity struct {
 	signer crypto.Signer
 }
 
-func newCLSigningIdentity(PA []byte, signer crypto.Signer, msp *clmsp) (SigningIdentity, error) {
+func newCLSigningIdentity(PA []byte, ID string, signer crypto.Signer, msp *clmsp) (SigningIdentity, error) {
 	//mspclIdentityLogger.Infof("Creating cl signing identity instance for ID %s", id)
 	block, _ := pem.Decode(PA)
 	if block == nil {
 		return nil, errors.New("invalid PA, failed decoding pem Bytes")
 
 	}
-	mspId, err := newclIdentity(block.Bytes, msp)
+	mspId, err := newclIdentity(block.Bytes, msp, ID)
 	if err != nil {
 		return nil, err
 	}

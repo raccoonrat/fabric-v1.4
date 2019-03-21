@@ -167,8 +167,9 @@ func (msp *clmsp) finalizeSetupCAs() error {
 
 	return nil
 }
+*/
 
-func (msp *clmsp) setupNodeOUs(config *m.FabricMSPConfig) error {
+func (msp *clmsp) setupNodeOUs(config *m.CLMSPConfig) error {
 	if config.FabricNodeOus != nil {
 
 		msp.ouEnforcement = config.FabricNodeOus.Enable
@@ -176,7 +177,7 @@ func (msp *clmsp) setupNodeOUs(config *m.FabricMSPConfig) error {
 		// ClientOU
 		msp.clientOU = &OUIdentifier{OrganizationalUnitIdentifier: config.FabricNodeOus.ClientOuIdentifier.OrganizationalUnitIdentifier}
 		if len(config.FabricNodeOus.ClientOuIdentifier.Certificate) != 0 {
-			certifiersIdentifier, err := msp.getCertifiersIdentifier(config.FabricNodeOus.ClientOuIdentifier.Certificate)
+			certifiersIdentifier, err := msp.getKGCIdentifier(config.FabricNodeOus.ClientOuIdentifier.Certificate)
 			if err != nil {
 				return err
 			}
@@ -186,7 +187,7 @@ func (msp *clmsp) setupNodeOUs(config *m.FabricMSPConfig) error {
 		// PeerOU
 		msp.peerOU = &OUIdentifier{OrganizationalUnitIdentifier: config.FabricNodeOus.PeerOuIdentifier.OrganizationalUnitIdentifier}
 		if len(config.FabricNodeOus.PeerOuIdentifier.Certificate) != 0 {
-			certifiersIdentifier, err := msp.getCertifiersIdentifier(config.FabricNodeOus.PeerOuIdentifier.Certificate)
+			certifiersIdentifier, err := msp.getKGCIdentifier(config.FabricNodeOus.PeerOuIdentifier.Certificate)
 			if err != nil {
 				return err
 			}
@@ -200,7 +201,6 @@ func (msp *clmsp) setupNodeOUs(config *m.FabricMSPConfig) error {
 	return nil
 }
 
-*/
 func (msp *clmsp) setupSigningIdentity(conf *m.CLMSPConfig) error {
 	if conf.CLSigningIdentity != nil {
 		sid, err := msp.getSigningIdentityFromConf(conf.CLSigningIdentity)
@@ -248,7 +248,7 @@ func (msp *clmsp) setupOUs(conf *m.CLMSPConfig) error {
 
 func (msp *clmsp) setupTLSCAs(conf *m.CLMSPConfig) error {
 
-	msp.opts = &x509.VerifyOptions{Roots: x509.NewCertPool(), Intermediates: x509.NewCertPool()}
+	opts := &x509.VerifyOptions{Roots: x509.NewCertPool(), Intermediates: x509.NewCertPool()}
 
 	// Load TLS root and intermediate CA identities
 	msp.tlsRootCerts = make([][]byte, len(conf.TlsRootCerts))
@@ -261,7 +261,7 @@ func (msp *clmsp) setupTLSCAs(conf *m.CLMSPConfig) error {
 
 		rootCerts[i] = cert
 		msp.tlsRootCerts[i] = trustedCert
-		msp.opts.Roots.AddCert(cert)
+		opts.Roots.AddCert(cert)
 	}
 
 	// make and fill the set of intermediate certs (if present)
@@ -275,7 +275,7 @@ func (msp *clmsp) setupTLSCAs(conf *m.CLMSPConfig) error {
 
 		intermediateCerts[i] = cert
 		msp.tlsIntermediateCerts[i] = trustedCert
-		msp.opts.Intermediates.AddCert(cert)
+		opts.Intermediates.AddCert(cert)
 	}
 
 	// ensure that our CAs are properly formed and that they are valid
@@ -291,7 +291,7 @@ func (msp *clmsp) setupTLSCAs(conf *m.CLMSPConfig) error {
 			return errors.WithMessage(err, fmt.Sprintf("CA Certificate problem with Subject Key Identifier extension, (SN: %x)", cert.SerialNumber))
 		}
 
-		if err := msp.validateTLSCAIdentity(cert, msp.opts); err != nil {
+		if err := msp.validateTLSCAIdentity(cert, opts); err != nil {
 			return errors.WithMessage(err, fmt.Sprintf("CA Certificate is not valid, (SN: %s)", cert.SerialNumber))
 		}
 	}
@@ -379,11 +379,9 @@ func (msp *clmsp) setupV11(conf *m.CLMSPConfig) error {
 	}
 
 	// setup NodeOUs
-	/*
-		if err := msp.setupNodeOUs(conf); err != nil {
-			return err
-		}
-	*/
+	if err := msp.setupNodeOUs(conf); err != nil {
+		return err
+	}
 
 	err = msp.postSetupV11(conf)
 	if err != nil {

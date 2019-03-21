@@ -568,8 +568,8 @@ func buildTrustedRootsForChain(cm channelconfig.Resources) {
 	}
 	if err == nil {
 		for k, v := range msps {
-			// check to see if this is a FABRIC MSP
-			if v.GetType() == msp.FABRIC {
+			// check to see if this is a FABRIC MSP or IBPCLA MSP
+			if v.GetType() == msp.FABRIC || v.GetType() == msp.IBPCLA {
 				for _, root := range v.GetTLSRootCerts() {
 					// check to see of this is an app org MSP
 					if _, ok := appOrgMSPs[k]; ok {
