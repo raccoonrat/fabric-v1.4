@@ -281,6 +281,7 @@ $(BUILD_DIR)/image/buildenv/payload:   $(BUILD_DIR)/gotools.tar.bz2 \
 
 $(BUILD_DIR)/image/%/payload:
 	mkdir -p $@
+	cp $(GOPATH)/bin/protoc-gen-go .build/docker/gotools/bin/
 	cp $^ $@
 
 .PRECIOUS: $(BUILD_DIR)/image/%/Dockerfile

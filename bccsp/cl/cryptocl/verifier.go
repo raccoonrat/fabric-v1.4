@@ -12,7 +12,12 @@ import (
 
 	"github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric/bccsp/utils"
+	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/pkg/errors"
+)
+
+var (
+	logger = flogging.MustGetLogger("bccsp_cl")
 )
 
 type Verifier struct {
