@@ -19,7 +19,6 @@ import (
 	"github.com/hyperledger/fabric/common/tools/clgen/kgc"
 	"github.com/hyperledger/fabric/common/tools/clgen/metadata"
 	"github.com/hyperledger/fabric/common/tools/clgen/msp"
-	idconfig "github.com/hyperledger/fabric/ibpcla/identity"
 	"gopkg.in/alecthomas/kingpin.v2"
 	"gopkg.in/yaml.v2"
 )
@@ -210,7 +209,7 @@ PeerOrgs:
 
 //command line flags
 var (
-	app = kingpin.New("clgen", "Utility for generating Hyperledger Fabric ibpcla key material")
+	app = kingpin.New("cryptogen", "Utility for generating Hyperledger Fabric key material")
 
 	gen           = app.Command("generate", "Generate key material")
 	outputDir     = gen.Flag("output", "The output directory in which to place artifacts").Default("crypto-config").String()
@@ -325,10 +324,10 @@ func extendPeerOrg(orgSpec OrgSpec) {
 	adminUser := NodeSpec{
 		CommonName: fmt.Sprintf("%s@%s", adminBaseName, orgName),
 	}
-	// copy the adminconfig to each of the org's peer's MSP adminconfigs
+	// copy the admin cert to each of the org's peer's MSP admincerts
 	for _, spec := range orgSpec.Specs {
 		err := copyAdminCert(usersDir,
-			filepath.Join(peersDir, spec.CommonName, "msp", "adminconfigs"), adminUser.CommonName)
+			filepath.Join(peersDir, spec.CommonName, "msp", "admincerts"), adminUser.CommonName)
 		if err != nil {
 			fmt.Printf("Error copying admin cert for org %s peer %s:\n%v\n",
 				orgName, spec.CommonName, err)
@@ -534,7 +533,7 @@ func generatePeerOrg(baseDir string, orgSpec OrgSpec) {
 	mspDir := filepath.Join(orgDir, "msp")
 	peersDir := filepath.Join(orgDir, "peers")
 	usersDir := filepath.Join(orgDir, "users")
-	adminCertsDir := filepath.Join(mspDir, "CLID")
+	adminCertsDir := filepath.Join(mspDir, "admincerts")
 	// generate signing KGC
 	signKGC, err := kgc.NewKGC(kgcDir, orgName, orgSpec.KGC.CommonName)
 	if err != nil {
@@ -576,7 +575,7 @@ func generatePeerOrg(baseDir string, orgSpec OrgSpec) {
 	// copy the admin cert to the org's MSP admincerts
 	err = copyAdminCert(usersDir, adminCertsDir, adminUser.CommonName)
 	if err != nil {
-		fmt.Printf("Error copying adminconfig for org %s:\n%v\n",
+		fmt.Printf("Error copying admin cert for org %s:\n%v\n",
 			orgName, err)
 		os.Exit(1)
 	}
@@ -584,9 +583,9 @@ func generatePeerOrg(baseDir string, orgSpec OrgSpec) {
 	// copy the admin cert to each of the org's peer's MSP admincerts
 	for _, spec := range orgSpec.Specs {
 		err = copyAdminCert(usersDir,
-			filepath.Join(peersDir, spec.CommonName, "msp", "CLID"), adminUser.CommonName)
+			filepath.Join(peersDir, spec.CommonName, "msp", "admincerts"), adminUser.CommonName)
 		if err != nil {
-			fmt.Printf("Error copying admin config for org %s peer %s:\n%v\n",
+			fmt.Printf("Error copying admin cert for org %s peer %s:\n%v\n",
 				orgName, spec.CommonName, err)
 			os.Exit(1)
 		}
@@ -594,21 +593,23 @@ func generatePeerOrg(baseDir string, orgSpec OrgSpec) {
 }
 
 func copyAdminCert(usersDir, adminCertsDir, adminUserName string) error {
-	IDConfig := &idconfig.IdConfig{}
-	err := IDConfig.Load(filepath.Join(adminCertsDir, "adminconfig"))
-	if err != nil {
-		return err
-	}
-	if IDConfig.EnrollmentID == adminUserName {
+	if _, err := os.Stat(filepath.Join(adminCertsDir,
+		adminUserName+"-PA.pem")); err == nil {
 		return nil
 	}
 	// delete the contents of admincerts
-	err = os.Remove(filepath.Join(adminCertsDir, "adminconfig"))
+	err := os.RemoveAll(adminCertsDir)
 	if err != nil {
 		return err
 	}
-	err = copyFile(filepath.Join(usersDir, adminUserName, "msp", "CLID",
-		"adminconfig"), filepath.Join(adminCertsDir, "adminconfig"))
+	// recreate the admincerts directory
+	err = os.MkdirAll(adminCertsDir, 0755)
+	if err != nil {
+		return err
+	}
+	err = copyFile(filepath.Join(usersDir, adminUserName, "msp", "signcerts",
+		adminUserName+"-PA.pem"), filepath.Join(adminCertsDir,
+		adminUserName+"-PA.pem"))
 	if err != nil {
 		return err
 	}
@@ -641,7 +642,7 @@ func generateOrdererOrg(baseDir string, orgSpec OrgSpec) {
 	mspDir := filepath.Join(orgDir, "msp")
 	orderersDir := filepath.Join(orgDir, "orderers")
 	usersDir := filepath.Join(orgDir, "users")
-	adminCertsDir := filepath.Join(mspDir, "CLID")
+	adminCertsDir := filepath.Join(mspDir, "admincerts")
 	// generate signing KGC
 	signKGC, err := kgc.NewKGC(kgcDir, orgName, orgSpec.KGC.CommonName)
 	if err != nil {
@@ -676,7 +677,7 @@ func generateOrdererOrg(baseDir string, orgSpec OrgSpec) {
 	// copy the admin cert to the org's MSP admincerts
 	err = copyAdminCert(usersDir, adminCertsDir, adminUser.CommonName)
 	if err != nil {
-		fmt.Printf("Error copying admin config for org %s:\n%v\n",
+		fmt.Printf("Error copying admin cert for org %s:\n%v\n",
 			orgName, err)
 		os.Exit(1)
 	}
@@ -684,9 +685,9 @@ func generateOrdererOrg(baseDir string, orgSpec OrgSpec) {
 	// copy the admin cert to each of the org's orderers's MSP admincerts
 	for _, spec := range orgSpec.Specs {
 		err = copyAdminCert(usersDir,
-			filepath.Join(orderersDir, spec.CommonName, "msp", "CLID"), adminUser.CommonName)
+			filepath.Join(orderersDir, spec.CommonName, "msp", "admincerts"), adminUser.CommonName)
 		if err != nil {
-			fmt.Printf("Error copying admin config for org %s orderer %s:\n%v\n",
+			fmt.Printf("Error copying admin cert for org %s orderer %s:\n%v\n",
 				orgName, spec.CommonName, err)
 			os.Exit(1)
 		}
@@ -736,11 +737,12 @@ func getCA(caDir string, spec OrgSpec, name string) *ca.CA {
 
 func getKGC(kgcDir string, spec OrgSpec, name string) *kgc.KGC {
 	s, _ := csp.LoadKGCMasterKey(kgcDir)
-	_, rawpub, _ := kgc.LoadKGCPublicKey(kgcDir)
+	pub, rawpub, _ := kgc.LoadKGCPublicKey(kgcDir)
 
 	return &kgc.KGC{
 		Name:         name,
 		MasterKey:    s,
+		MasterPub:    pub,
 		RawPub:       rawpub,
 		Organization: spec.Domain,
 	}

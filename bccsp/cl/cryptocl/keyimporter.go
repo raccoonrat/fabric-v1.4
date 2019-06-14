@@ -7,12 +7,11 @@ package cryptocl
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509"
-	"encoding/pem"
-	"fmt"
 
 	"github.com/hyperledger/fabric/bccsp"
-	"github.com/hyperledger/fabric/bccsp/utils"
 	"github.com/pkg/errors"
 )
 
@@ -29,12 +28,13 @@ func (v *KGCKeyImporter) KeyImport(raw interface{}, opts bccsp.KeyImportOpts) (k
 		return nil, errors.New("invalid raw, it must not be nil")
 	}
 
-	block, _ := pem.Decode(pembyte)
-	if block == nil {
-		return nil, errors.New("invalid key, pem decode failed")
-	}
-
-	ecPubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+	/*
+		block, _ := pem.Decode(pembyte)
+		if block == nil {
+			return nil, errors.New("invalid key, pem decode failed")
+		}
+	*/
+	ecPubKey, err := x509.ParsePKIXPublicKey(pembyte)
 	if err != nil {
 		return nil, errors.New("Invalid raw material. Expected *Block")
 	}
@@ -60,16 +60,25 @@ func (v *SignerKeyImporter) KeyImport(raw interface{}, opts bccsp.KeyImportOpts)
 	if len(der) == 0 {
 		return nil, errors.New("[ECDSADERPrivateKeyImportOpts] Invalid raw. It must not be nil.")
 	}
-
-	lowLevelKey, err := utils.DERToPrivateKey(der)
+	/*
+		lowLevelKey, err := utils.DERToPrivateKey(der)
+		if err != nil {
+			return nil, fmt.Errorf("Failed converting PKIX to ECDSA public key [%s]", err)
+		}
+	*/
+	curve := elliptic.P256()
+	ecdsaSK, err := ecdsa.GenerateKey(curve, rand.Reader)
 	if err != nil {
-		return nil, fmt.Errorf("Failed converting PKIX to ECDSA public key [%s]", err)
+		return nil, err
 	}
+	ecdsaSK.D.SetBytes(der)
 
-	ecdsaSK, ok := lowLevelKey.(*ecdsa.PrivateKey)
-	if !ok {
-		return nil, errors.New("Failed casting to ECDSA private key. Invalid raw material.")
-	}
+	/*
+		ecdsaSK, ok := lowLevelKey.(*ecdsa.PrivateKey)
+		if !ok {
+			return nil, errors.New("Failed casting to ECDSA private key. Invalid raw material.")
+		}
+	*/
 
 	return &signKey{ecdsaSK}, nil
 }

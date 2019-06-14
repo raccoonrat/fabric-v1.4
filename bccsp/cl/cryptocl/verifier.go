@@ -67,7 +67,9 @@ func RecoverPub(opts *bccsp.CLVerifierOpts) (*ecdsa.PublicKey, error) {
 	if PA == nil {
 		return nil, errors.New("can not load PA from opts")
 	}
-
+	fmt.Printf("rootPub_X:%02X\n", rootPub.X.Bytes())
+	fmt.Printf("rootPub_Y:%02X\n", rootPub.Y.Bytes())
+	fmt.Printf("PA:%02X\n", PA)
 	c := rootPub.Curve
 	if c == nil {
 		return nil, errors.New("can not load curve parameters from root public key")

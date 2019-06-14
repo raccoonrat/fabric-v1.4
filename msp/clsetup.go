@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
 	"fmt"
 
 	"github.com/golang/protobuf/proto"
@@ -22,23 +21,25 @@ import (
 func (msp *clmsp) getKGCIdentifier(PubRaw []byte) ([]byte, error) {
 
 	//decode and get pub
-	bl, _ := pem.Decode(PubRaw)
-	if bl == nil {
-		return nil, errors.New("invalid KGC Pubs, pem decode fail")
-	}
+	/*
+		bl, _ := pem.Decode(PubRaw)
+		if bl == nil {
+			return nil, errors.New("invalid KGC Pubs, pem decode fail")
+		}
+	*/
 	found := false
 	// Search among root certificates
 	var temp []byte
 	for _, v := range msp.rootPubs {
 		temp, _ = v.Bytes()
-		if bytes.Equal(temp, bl.Bytes) {
+		if bytes.Equal(temp, PubRaw) {
 			found = true
 			break
 		}
 	}
 	if !found {
 		// kgc Pub not valid, reject configuration
-		return nil, fmt.Errorf("Failed adding OU. Pub [%v] not in root pubs.", bl.Bytes)
+		return nil, fmt.Errorf("Failed adding OU. Pub [%v] not in root pubs.", PubRaw)
 	}
 
 	// compute the hash of the pub
@@ -50,7 +51,7 @@ func (msp *clmsp) getKGCIdentifier(PubRaw []byte) ([]byte, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed getting hash function when computing kgc identifier")
 	}
-	hf.Write(bl.Bytes)
+	hf.Write(PubRaw)
 
 	return hf.Sum(nil), nil
 
@@ -216,6 +217,7 @@ func (msp *clmsp) setupSigningIdentity(conf *m.CLMSPConfig) error {
 
 func (msp *clmsp) setupOUs(conf *m.CLMSPConfig) error {
 
+	fmt.Println("---setup OUs")
 	msp.ouIdentifiers = make(map[string][][]byte)
 	for _, ou := range conf.OrganizationalUnitIdentifiers {
 

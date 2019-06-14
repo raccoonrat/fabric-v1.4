@@ -422,6 +422,11 @@ func validateKey(dA []byte, P1 *ecdsa.PublicKey, Pa []byte, ID string) error {
 	c := elliptic.P256()
 	n := elliptic.P256().Params().N
 
+	log.Infof("PA:%02X", Pa)
+	/*X, Y := c.ScalarBaseMult(dA)
+	  X.Mod(X, n)
+	   Y.Mod(Y, n)
+	*/
 	d := new(big.Int).SetBytes(dA)
 	priv := new(ecdsa.PrivateKey)
 	priv.D = d
@@ -431,32 +436,10 @@ func validateKey(dA []byte, P1 *ecdsa.PublicKey, Pa []byte, ID string) error {
 	Y := priv.PublicKey.Y
 	X.Mod(X, n)
 	Y.Mod(Y, n)
+	log.Info("X:", X)
+	log.Info("Y:", Y)
 
 	var buffer bytes.Buffer
 	buffer.Write([]byte(ID))
 	buffer.Write(Pa)
-	e := sha256.Sum256(buffer.Bytes())
-	e0 := new(big.Int).SetBytes(e[0:15])
-	e1 := new(big.Int).SetBytes(e[16:31])
-
-	//get x1, y1, xa, ya
-	puba, err := x509.ParsePKIXPublicKey(Pa)
-	if err != nil {
-		return err
-	}
-	pa := puba.(*ecdsa.PublicKey)
-
-	xa, ya := c.ScalarMult(pa.X, pa.Y, e0.Bytes())
-	x1, y1 := c.ScalarMult(P1.X, P1.Y, e1.Bytes())
-
-	// x1 + xa ?= x
-	x, y := c.Add(x1, y1, xa, ya)
-	x.Mod(x, n)
-	y.Mod(y, n)
-
-	if x.Cmp(X) != 0 {
-		return errors.New(("faield to pass key verification"))
-	}
-	return nil
-
 }

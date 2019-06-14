@@ -25,6 +25,7 @@ import (
 type KGC struct {
 	Name         string
 	MasterKey    *ecdsa.PrivateKey
+	MasterPub    *ecdsa.PublicKey
 	RawPub       []byte
 	Organization string
 }
@@ -55,21 +56,7 @@ func NewKGC(baseDir, org, name string) (*KGC, error) {
 	var response error
 	var kgc *KGC
 	err := os.MkdirAll(baseDir, 0755)
-	if err != nil {
-		return nil, err
-	}
-
-	priv, raw, err := csp.KGCGenerateMasterKey(baseDir)
-	if err != nil {
-		return nil, err
-	}
-	kgc = &KGC{
-		Name:         name,
-		MasterKey:    priv,
-		RawPub:       raw,
-		Organization: org,
-	}
-	/*
+	if err == nil {
 		bpriv, err := csp.KGCGeneratePrivateKey(baseDir)
 		response = err
 		if err == nil {
@@ -88,23 +75,54 @@ func NewKGC(baseDir, org, name string) (*KGC, error) {
 				}
 			}
 		}
-	*/
+	}
 	return kgc, response
 }
 
 // KGCGenPartialKey creates partial pk and sk based on a built-in template
 // and saves it in baseDir/name
-func (kgc *KGC) KGCGenPartialKey(ID string, XA *ecdsa.PublicKey) ([]byte, []byte, error) {
+func (kgc *KGC) KGCGenPartialKey(baseDir, ID string, XA *ecdsa.PublicKey) (*PartialKey, error) {
 
+	var partialkey *PartialKey
 	pa, za, err := KGCGenPartialKeyInternal(ID, XA, kgc.MasterKey)
-	if err != nil {
-		return nil, nil, err
+	if err == nil {
+		partialkey = &PartialKey{
+			PartialPublicKey:  pa,
+			PartialPrivateKey: za,
+		}
 	}
 
-	return pa, za, nil
+	if err != nil {
+		return nil, err
+	}
+
+	//write Partial Public Key to file
+	fileName := filepath.Join(baseDir, ID+"-PA.pem")
+	PAFile, err := os.Create(fileName)
+	if err != nil {
+		return nil, err
+	}
+	//pem encode the public key
+	//PA = PAx||PAy
+	err = pem.Encode(PAFile, &pem.Block{Type: "PUBLIC KEY", Bytes: partialkey.PABytes()})
+	PAFile.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	//to load PA
+	/*
+		rawPubKey, err := ioutil.ReadFile(fileName)
+		block, _ := pem.Decode(rawPubKey)
+		fmt.Println("PA:" + hex.EncodeToString(block.Bytes))
+		PAx := new(big.Int).SetBytes(block.Bytes[0:15])
+		PAy := new(big.Int).SetBytes(block.Bytes[16:31])
+	*/
+
+	return partialkey, nil
 }
 
-func KGCGenPartialKeyInternal(ID string, XA *ecdsa.PublicKey, s *ecdsa.PrivateKey) ([]byte, []byte, error) {
+func KGCGenPartialKeyInternal(ID string, XA *ecdsa.PublicKey, s *ecdsa.PrivateKey) (*PPublicKey, *big.Int, error) {
 
 	var buffer bytes.Buffer
 
@@ -132,14 +150,10 @@ func KGCGenPartialKeyInternal(ID string, XA *ecdsa.PublicKey, s *ecdsa.PrivateKe
 	PAx.Mod(PAx, n)
 	PAy.Mod(PAy, n)
 
-	var PA *ecdsa.PublicKey
-	PA = XA
-	PA.X.SetBytes(PAx.Bytes())
-	PA.Y.SetBytes(PAy.Bytes())
-	PABytes, err := x509.MarshalPKIXPublicKey(PA)
 	//e = hash(ID||PA)
 	buffer.Write([]byte(ID))
-	buffer.Write(PABytes)
+	buffer.Write(PAx.Bytes())
+	buffer.Write(PAy.Bytes())
 	e := sha256.Sum256(buffer.Bytes())
 
 	//e0=e[0:15], e1=e[16:31]
@@ -153,7 +167,7 @@ func KGCGenPartialKeyInternal(ID string, XA *ecdsa.PublicKey, s *ecdsa.PrivateKe
 	za := new(big.Int).Add(e0, e1)
 	za.Mod(za, n)
 
-	return PABytes, za.Bytes(), nil
+	return &PPublicKey{X: PAx, Y: PAy}, za, nil
 }
 
 // LoadKGCPublicKey load a ecdsa public key from a file in cert path

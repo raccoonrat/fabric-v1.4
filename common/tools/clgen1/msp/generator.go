@@ -6,13 +6,9 @@ SPDX-License-Identifier: Apache-2.0
 package msp
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,10 +16,10 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/hyperledger/fabric/bccsp"
+	"github.com/hyperledger/fabric/bccsp/factory"
 	"github.com/hyperledger/fabric/common/tools/clgen/ca"
 	"github.com/hyperledger/fabric/common/tools/clgen/csp"
 	"github.com/hyperledger/fabric/common/tools/clgen/kgc"
-	idconfig "github.com/hyperledger/fabric/ibpcla/identity"
 	fabricmsp "github.com/hyperledger/fabric/msp"
 )
 
@@ -63,57 +59,40 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 	/*
 		Create the MSP identity artifacts
 	*/
+	// get keystore path
+	keystore := filepath.Join(mspDir, "keystore")
+	clientxstore := filepath.Join(mspDir, "client_x")
 
 	// generate x
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	priv, _, err := csp.GeneratePrivateKey(clientxstore)
+	if err != nil {
+		return err
+	}
+
+	// get X
+	ecPubKey, err := csp.GetECPublicKey(priv)
 	if err != nil {
 		return err
 	}
 
 	//kgc generate partial keys
-	pa, za, err := signKGC.KGCGenPartialKey(name, &priv.PublicKey)
+	partialkey, err := signKGC.KGCGenPartialKey(filepath.Join(mspDir, "signcerts"),
+		name, ecPubKey)
+
 	if err != nil {
 		return err
 	}
+
+	//client load random number x
+	epriv, err := csp.LoadCLPrivateKey(clientxstore, priv.SKI())
+	if err != nil {
+		return err
+	}
+	//remove client_x folder for current version
+	os.RemoveAll(clientxstore)
 
 	//client generate final key
-	sk, err := csp.GenFinalKeyPair(name, priv, pa, za)
-	if err != nil {
-		return err
-	}
-
-	err = csp.validateKey(sk, signKGC.MasterKey.PublicKey, pa, name)
-	if err != nil {
-		return err
-	}
-
-	serial := csp.GenSerial(za)
-	if err != nil {
-		return err
-	}
-
-	var role string
-	switch nodeType {
-	case PEER:
-		role = "peer"
-	case ORDERER:
-		role = "client"
-	case CLIENT:
-		if strings.Split(name, "@")[0] == "Admin" {
-			role = "admin"
-		} else {
-			role = "member"
-		}
-	}
-	IDConfig := &idconfig.IdConfig{
-		Pk:                           pa,
-		Sk:                           sk,
-		Serial:                       serial,
-		EnrollmentID:                 name,
-		OrganizationalUnitIdentifier: signKGC.Organization,
-		Role:                         role,
-	}
-	err = IDConfig.Store(filepath.Join(mspDir, "CLID", "IDconfig"))
+	err = csp.GenFinalKeyPair(keystore, name, epriv, partialkey.PartialPrivateKey.Bytes(), partialkey.PABytes())
 	if err != nil {
 		return err
 	}
@@ -121,7 +100,7 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 	// write artifacts to MSP folders
 
 	// the signing KGC pubkey goes into kgcpubs
-	err = ioutil.WriteFile(filepath.Join(mspDir, "kgcpubs", MasterPubFilename(signKGC.Name)), signKGC.RawPub, 0644)
+	err = MasterPubExport(filepath.Join(mspDir, "kgcpubs", MasterPubFilename(signKGC.Name)), signKGC.RawPub)
 	if err != nil {
 		return err
 	}
@@ -135,20 +114,15 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 	EnableNode := nodeOUs && nodeType == PEER
 	exportConfigID(mspDir, "kgcpubs/"+MasterPubFilename(signKGC.Name), EnableNode)
 
-	// the signing identity goes into adminconfigs.
+	// the signing identity goes into admincerts.
 	// This means that the signing identity
 	// of this MSP is also an admin of this MSP
-	// NOTE: the adminconfigs folder is going to be
+	// NOTE: the admincerts folder is going to be
 	// cleared up anyway by copyAdminCert, but
 	// we leave a valid admin for now for the sake
 	// of unit tests
-	adminConfig := &idconfig.IdConfig{
-		Pk:                           pa,
-		EnrollmentID:                 name,
-		OrganizationalUnitIdentifier: signKGC.Organization,
-		Role:                         role,
-	}
-	err = adminConfig.Store(filepath.Join(mspDir, "CLID", "adminconfig"))
+	err = MasterPubExport(filepath.Join(mspDir, "admincerts", name+"-PA.pem"),
+		partialkey.PABytes())
 	if err != nil {
 		return err
 	}
@@ -204,7 +178,7 @@ func GenerateVerifyingMSP(baseDir string, signKGC *kgc.KGC, tlsCA *ca.CA, nodeOU
 	err := createFolderStructure(baseDir, false)
 	if err == nil {
 		// the KGC Pubkeys goes into kgcpubs
-		err = ioutil.WriteFile(filepath.Join(baseDir, "kgcpubs", MasterPubFilename(signKGC.Name)), signKGC.RawPub, 0644)
+		err = MasterPubExport(filepath.Join(baseDir, "kgcpubs", MasterPubFilename(signKGC.Name)), signKGC.RawPub)
 		if err != nil {
 			return err
 		}
@@ -225,29 +199,19 @@ func GenerateVerifyingMSP(baseDir string, signKGC *kgc.KGC, tlsCA *ca.CA, nodeOU
 	// cleared up anyway by copyAdminCert, but
 	// we leave a valid admin for now for the sake
 	// of unit tests
-	/*
-		factory.InitFactories(nil)
-		bcsp := factory.GetDefault()
-		priv, err := bcsp.KeyGen(&bccsp.ECDSAP256KeyGenOpts{Temporary: true})
-		ecPubKey, err := csp.GetECPublicKey(priv)
-	*/
-	pri, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	factory.InitFactories(nil)
+	bcsp := factory.GetDefault()
+	priv, err := bcsp.KeyGen(&bccsp.ECDSAP256KeyGenOpts{Temporary: true})
+	ecPubKey, err := csp.GetECPublicKey(priv)
 	if err != nil {
 		return err
 	}
-	tempID := "TempAdmin"
-	tempPA, _, err := signKGC.KGCGenPartialKey(tempID, &pri.PublicKey)
+	_, err = signKGC.KGCGenPartialKey(filepath.Join(baseDir, "admincerts"), "TempAdmin",
+		ecPubKey)
 	if err != nil {
 		return err
 	}
-	adminConfig := &idconfig.IdConfig{
-		Pk:           tempPA,
-		EnrollmentID: tempID,
-	}
-	err = adminConfig.Store(filepath.Join(baseDir, "CLID", "adminconfig"))
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 
@@ -256,11 +220,14 @@ func createFolderStructure(rootDir string, local bool) error {
 	var folders []string
 	// create admincerts, kgcpubkeys, keystore and signcerts folders
 	folders = []string{
-		filepath.Join(rootDir, "CLID"),
+		filepath.Join(rootDir, "admincerts"),
 		filepath.Join(rootDir, "kgcpubs"),
 		filepath.Join(rootDir, "tlscacerts"),
 	}
 	if local {
+		folders = append(folders, filepath.Join(rootDir, "keystore"),
+			filepath.Join(rootDir, "signcerts"))
+		folders = append(folders, filepath.Join(rootDir, "client_x"))
 	}
 
 	for _, folder := range folders {
@@ -282,7 +249,7 @@ func x509Export(path string, cert *x509.Certificate) error {
 }
 
 func MasterPubFilename(name string) string {
-	return name + "-pubkey"
+	return name + "-pubkey.pem"
 }
 
 func MasterPubExport(path string, raw []byte) error {
@@ -338,7 +305,10 @@ func exportConfig(mspDir, kgcFile string, enable bool) error {
 }
 
 func exportConfigID(mspDir, kgcFile string, enable bool) error {
-	var config = &fabricmsp.Configuration{}
+	sl := strings.Split(mspDir, "/")
+	var config = &fabricmsp.CLConfiguration{
+		ID: sl[len(sl)-2],
+	}
 	if enable {
 		config.NodeOUs = &fabricmsp.NodeOUs{
 			Enable: enable,

@@ -12,6 +12,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/pem"
+	"fmt"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -190,6 +191,9 @@ func (id *clidentity) Verify(msg []byte, sig []byte) error {
 	if err != nil {
 		return errors.WithMessage(err, "failed computing HID")
 	}
+	fmt.Printf("ID:%s\n", id.nameID)
+	fmt.Printf("PA:%02X\n", id.PA)
+	fmt.Printf("HID:%02X\n", HID)
 
 	if mspclIdentityLogger.IsEnabledFor(zapcore.DebugLevel) {
 		mspclIdentityLogger.Debugf("IBPCLA Verify: digest = %s", hex.Dump(digest))
@@ -257,12 +261,14 @@ type clsigningidentity struct {
 
 func newCLSigningIdentity(PA []byte, ID string, signer crypto.Signer, msp *clmsp) (SigningIdentity, error) {
 	//mspclIdentityLogger.Infof("Creating cl signing identity instance for ID %s", id)
-	block, _ := pem.Decode(PA)
-	if block == nil {
-		return nil, errors.New("invalid PA, failed decoding pem Bytes")
+	/*
+		block, _ := pem.Decode(PA)
+		if block == nil {
+			return nil, errors.New("invalid PA, failed decoding pem Bytes")
 
-	}
-	mspId, err := newclIdentity(block.Bytes, msp, ID)
+		}
+	*/
+	mspId, err := newclIdentity(PA, msp, ID)
 	if err != nil {
 		return nil, err
 	}

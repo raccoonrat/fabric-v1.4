@@ -116,11 +116,13 @@ func (msp *clmsp) getCertFromPem(idBytes []byte) (*x509.Certificate, error) {
 func (msp *clmsp) getclIdentityFromConf(PABytes []byte) (*clidentity, error) {
 
 	// get the PA in the right format
-	block, _ := pem.Decode(PABytes)
-	if block == nil {
-		return nil, errors.New("invalid PA, failed decoding pem Bytes")
+	/*
+		block, _ := pem.Decode(PABytes)
+		if block == nil {
+			return nil, errors.New("invalid PA, failed decoding pem Bytes")
 
-	}
+		}
+	*/
 
 	// Use the hash of the identity's certificate as id in the IdentityIdentifier
 	hashOpt, err := bccsp.GetHashOpt(msp.cryptoConfig.IdentityIdentifierHashFunction)
@@ -128,7 +130,7 @@ func (msp *clmsp) getclIdentityFromConf(PABytes []byte) (*clidentity, error) {
 		return nil, errors.WithMessage(err, "failed getting hash function options")
 	}
 
-	digest, err := msp.csp.Hash(block.Bytes, hashOpt)
+	digest, err := msp.csp.Hash(PABytes, hashOpt)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed hashing PA to compute the id of the IdentityIdentifier")
 	}
@@ -137,7 +139,7 @@ func (msp *clmsp) getclIdentityFromConf(PABytes []byte) (*clidentity, error) {
 		Mspid: msp.name,
 		Id:    hex.EncodeToString(digest)}
 
-	return &clidentity{id: id, PA: block.Bytes, msp: msp}, nil
+	return &clidentity{id: id, PA: PABytes, msp: msp}, nil
 }
 
 /*
@@ -183,13 +185,14 @@ func (msp *clmsp) getSigningIdentityFromConf(sidInfo *m.CLMSPSignerConfig) (Sign
 	if sidInfo == nil {
 		return nil, errors.New("getIdentityFromBytes error: nil sidInfo")
 	}
-
-	pemKey, _ := pem.Decode(sidInfo.Sk)
-	if pemKey == nil {
-		return nil, errors.New("getIdentityFromBytes error: Failed to load Sk")
-	}
-
-	privKey, err := msp.csp.KeyImport(pemKey.Bytes, &bccsp.CLPrivateKeyImportOpts{Temporary: true})
+	/*
+			pemKey, _ := pem.Decode(sidInfo.Sk)
+			if pemKey == nil {
+				return nil, errors.New("getIdentityFromBytes error: Failed to load Sk")
+			}
+		privKey, err := msp.csp.KeyImport(pemKey.Bytes, &bccsp.CLPrivateKeyImportOpts{Temporary: true})
+	*/
+	privKey, err := msp.csp.KeyImport(sidInfo.Sk, &bccsp.CLPrivateKeyImportOpts{Temporary: true})
 	if err != nil {
 		return nil, errors.WithMessage(err, "getIdentityFromBytes error: Failed to import EC private key")
 	}

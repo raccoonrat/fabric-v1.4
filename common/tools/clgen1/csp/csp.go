@@ -10,7 +10,6 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/asn1"
@@ -23,7 +22,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hyperledger/fabric-ca/util"
 	"github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric/bccsp/factory"
 	"github.com/hyperledger/fabric/bccsp/signer"
@@ -211,30 +209,28 @@ func GetECPublicKey(priv bccsp.Key) (*ecdsa.PublicKey, error) {
 	return ecPubKey.(*ecdsa.PublicKey), nil
 }
 
-// KGCGenerateMasterKey creates a master key and stores it in keystorePath
-func KGCGenerateMasterKey(keystorePath string) (*ecdsa.PrivateKey, []byte, error) {
+// KGCGeneratePrivateKey creates a master key and stores it in keystorePath
+func KGCGeneratePrivateKey(keystorePath string) (bccsp.Key, error) {
 
-	//todo: support sm
-	curve := elliptic.P256()
-	privKey, err := ecdsa.GenerateKey(curve, rand.Reader)
-	if err != nil {
-		return nil, nil, err
-	}
-	pubKeyBytes, err := x509.MarshalPKIXPublicKey(privKey.Public())
-	if err != nil {
-		return nil, nil, err
-	}
-	//pemBytes := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubKeyBytes})
-	err = ioutil.WriteFile(filepath.Join(keystorePath, "KGC-PublicKey"), pubKeyBytes, 0644)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "Failed to store KGC public key")
-	}
-	err = ioutil.WriteFile(filepath.Join(keystorePath, "KGC-MasterKey"), privKey.D.Bytes(), 0644)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "Failed to store KGC master key")
-	}
+	var err error
+	var priv bccsp.Key
+	opts := &factory.FactoryOpts{
+		ProviderName: "SW",
+		SwOpts: &factory.SwOpts{
+			HashFamily: "SHA2",
+			SecLevel:   256,
 
-	return privKey, pubKeyBytes, nil
+			FileKeystore: &factory.FileKeystoreOpts{
+				KeyStorePath: keystorePath,
+			},
+		},
+	}
+	csp, err := factory.GetBCCSPFromOpts(opts)
+	if err == nil {
+		// generate a key
+		priv, err = csp.KeyGen(&bccsp.ECDSAP256KeyGenOpts{Temporary: false})
+	}
+	return priv, err
 }
 
 func BccspKey2ecdsaKey(bkey bccsp.Key) (*ecdsa.PrivateKey, error) {
@@ -283,10 +279,29 @@ func KGCGetECPublicKey(priv bccsp.Key, name, keystorePath string) (*ecdsa.Public
 	return ecPubKey.(*ecdsa.PublicKey), pubKeyBytes, nil
 }
 
-func GenFinalKeyPair(ID string, ClientPrivateKey *ecdsa.PrivateKey, PartialPrivateKey []byte, PartialPublicKey []byte) ([]byte, error) {
+func GenFinalKeyPair(keystorePath, name string, ClientPrivateKey *ecdsa.PrivateKey, PartialPrivateKey []byte, PartialPublicKey []byte) error {
+
+	finalPrivateKey := new(ecdsa.PrivateKey)
+	finalPrivateKey.Curve = ClientPrivateKey.Curve
+	dA, err := GenFinalKeyPairInternal(name, ClientPrivateKey, PartialPrivateKey, PartialPublicKey)
+	if err != nil {
+		return err
+	}
+	finalPrivateKey.D = dA
+
+	//write Final private key to file
+	err = storePrivateKey(keystorePath, finalPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func GenFinalKeyPairInternal(ID string, ClientPrivateKey *ecdsa.PrivateKey, PartialPrivateKey []byte, PartialPublicKey []byte) (*big.Int, error) {
 
 	var buffer bytes.Buffer
-	n := ClientPrivateKey.Params().N
+	n := ClientPrivateKey.Curve.Params().N
 
 	//e=h(ID||PA)
 	buffer.Write([]byte(ID))
@@ -302,7 +317,7 @@ func GenFinalKeyPair(ID string, ClientPrivateKey *ecdsa.PrivateKey, PartialPriva
 	d := new(big.Int).Add(e0, za)
 	d.Mod(d, n)
 
-	return d.Bytes(), nil
+	return d, nil
 }
 
 func storePrivateKey(keystorePath string, finalPrivateKey *ecdsa.PrivateKey) error {
@@ -410,53 +425,4 @@ func LoadCLPrivateKey(KGCPath string, ski []byte) (*ecdsa.PrivateKey, error) {
 	}
 
 	return nil, errors.New("Invalid key type. KGCPath must contain an ecdsa.Private    Key")
-}
-
-func GenSerial(za []byte) string {
-	hash := sha256.New()
-	hash.Write(za)
-	return util.B64Encode(hash.Sum(nil))
-}
-
-func validateKey(dA []byte, P1 *ecdsa.PublicKey, Pa []byte, ID string) error {
-	c := elliptic.P256()
-	n := elliptic.P256().Params().N
-
-	d := new(big.Int).SetBytes(dA)
-	priv := new(ecdsa.PrivateKey)
-	priv.D = d
-	priv.PublicKey.Curve = c
-	priv.PublicKey.X, priv.PublicKey.Y = c.ScalarBaseMult(d.Bytes())
-	X := priv.PublicKey.X
-	Y := priv.PublicKey.Y
-	X.Mod(X, n)
-	Y.Mod(Y, n)
-
-	var buffer bytes.Buffer
-	buffer.Write([]byte(ID))
-	buffer.Write(Pa)
-	e := sha256.Sum256(buffer.Bytes())
-	e0 := new(big.Int).SetBytes(e[0:15])
-	e1 := new(big.Int).SetBytes(e[16:31])
-
-	//get x1, y1, xa, ya
-	puba, err := x509.ParsePKIXPublicKey(Pa)
-	if err != nil {
-		return err
-	}
-	pa := puba.(*ecdsa.PublicKey)
-
-	xa, ya := c.ScalarMult(pa.X, pa.Y, e0.Bytes())
-	x1, y1 := c.ScalarMult(P1.X, P1.Y, e1.Bytes())
-
-	// x1 + xa ?= x
-	x, y := c.Add(x1, y1, xa, ya)
-	x.Mod(x, n)
-	y.Mod(y, n)
-
-	if x.Cmp(X) != 0 {
-		return errors.New(("faield to pass key verification"))
-	}
-	return nil
-
 }

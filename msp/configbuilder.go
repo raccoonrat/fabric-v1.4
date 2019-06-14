@@ -12,11 +12,11 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric/bccsp/factory"
+	idconfig "github.com/hyperledger/fabric/ibpcla/identity"
 	"github.com/hyperledger/fabric/protos/msp"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
@@ -47,19 +47,6 @@ type NodeOUs struct {
 // Configuration represents the accessory configuration an MSP can be equipped with.
 // By default, this configuration is stored in a yaml file
 type Configuration struct {
-	// OrganizationalUnitIdentifiers is a list of OUs. If this is set, the MSP
-	// will consider an identity valid only it contains at least one of these OUs
-	OrganizationalUnitIdentifiers []*OrganizationalUnitIdentifiersConfiguration `yaml:"OrganizationalUnitIdentifiers,omitempty"`
-	// NodeOUs enables the MSP to tell apart clients, peers and orderers based
-	// on the identity's OU.
-	NodeOUs *NodeOUs `yaml:"NodeOUs,omitempty"`
-}
-
-// CLConfiguration represents the accessory configuration an MSP can be equipped with.
-// By default, this configuration is stored in a yaml file
-type CLConfiguration struct {
-	//ID is the representation of the local msp
-	ID string `yaml:"ID,omitempty"`
 	// OrganizationalUnitIdentifiers is a list of OUs. If this is set, the MSP
 	// will consider an identity valid only it contains at least one of these OUs
 	OrganizationalUnitIdentifiers []*OrganizationalUnitIdentifiersConfiguration `yaml:"OrganizationalUnitIdentifiers,omitempty"`
@@ -120,6 +107,46 @@ func getPemMaterialFromDir(dir string) ([][]byte, error) {
 		mspLogger.Debugf("Inspecting file %s", fullName)
 
 		item, err := readPemFile(fullName)
+		if err != nil {
+			mspLogger.Warningf("Failed reading file %s: %s", fullName, err)
+			continue
+		}
+
+		content = append(content, item)
+	}
+
+	return content, nil
+}
+
+func getRawMaterialFromDir(dir string) ([][]byte, error) {
+	mspLogger.Debugf("Reading directory %s", dir)
+
+	_, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		return nil, err
+	}
+
+	content := make([][]byte, 0)
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return nil, errors.Wrapf(err, "could not read directory %s", dir)
+	}
+
+	for _, f := range files {
+		fullName := filepath.Join(dir, f.Name())
+
+		f, err := os.Stat(fullName)
+		if err != nil {
+			mspLogger.Warningf("Failed to stat %s: %s", fullName, err)
+			continue
+		}
+		if f.IsDir() {
+			continue
+		}
+
+		mspLogger.Debugf("Inspecting file %s", fullName)
+
+		item, err := readFile(fullName)
 		if err != nil {
 			mspLogger.Warningf("Failed reading file %s: %s", fullName, err)
 			continue
@@ -207,55 +234,28 @@ func GetLocalMspConfig(dir string, bccspConfig *factory.FactoryOpts, ID string) 
 }
 
 func GetLocalCLMspConfig(dir string, bccspConfig *factory.FactoryOpts, ID string) (*msp.MSPConfig, error) {
-	signcertDir := filepath.Join(dir, signcerts)
-	keystoreDir := filepath.Join(dir, keystore)
-	bccspConfig = SetupBCCSPKeystoreConfig(bccspConfig, keystoreDir)
+	IDconfigFile := filepath.Join(dir, CLID, "IDconfig")
+	/*
+		bccspConfig = SetupBCCSPKeystoreConfig(bccspConfig, keystoreDir)
 
-	err := factory.InitFactories(bccspConfig)
-	if err != nil {
-		return nil, errors.WithMessage(err, "could not initialize BCCSP Factories")
-	}
-
-	PA, err := getPemMaterialFromDir(signcertDir)
-	if err != nil || len(PA) == 0 {
-		return nil, errors.Wrapf(err, "could not load a valid vice identity from directory %s", signcertDir)
-	}
-
-	//load ID
-	configFile := filepath.Join(dir, configfilename)
-	_, err = os.Stat(configFile)
-	if err != nil {
-		return nil, errors.Wrapf(err, "could not load a valid identity from configfile")
-	}
-	// load the file, if there is a failure in loading it then
-	// return an error
-	raw, err := ioutil.ReadFile(configFile)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed loading configuration file at [%s]", configFile)
-	}
-	clconfiguration := CLConfiguration{}
-	err = yaml.Unmarshal(raw, &clconfiguration)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed unmarshalling configuration file at [%s]", configFile)
-	}
-	//get Sk
-	var sk []byte
-	walkFunc := func(path string, info os.FileInfo, err error) error {
-		if strings.HasSuffix(path, "_sk") {
-			sk, err = ioutil.ReadFile(path)
-			if err != nil {
-				return errors.WithMessage(err, "read sk failed")
-			}
-			return nil
+		err := factory.InitFactories(bccspConfig)
+		if err != nil {
+			return nil, errors.WithMessage(err, "could not initialize BCCSP Factories")
 		}
-		return nil
-	}
-	err = filepath.Walk(keystoreDir, walkFunc)
-	if (err != nil) || (sk == nil) {
-		return nil, errors.Wrapf(err, "could not load a valid sk from directory %s", signcertDir)
+	*/
+	IDconfig := &idconfig.IdConfig{}
+	err := IDconfig.Load(IDconfigFile)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to load IDconfig from %s", IDconfigFile)
 	}
 
-	sigid := &msp.CLMSPSignerConfig{Sk: sk, PA: PA[0], ID: clconfiguration.ID}
+	sigid := &msp.CLMSPSignerConfig{
+		PA: IDconfig.Pk,
+		Sk: IDconfig.Sk,
+		//OU: IDconfig.OrganizationalUnitIdentifier,
+		//Role: IDconfig.Role,
+		ID: IDconfig.EnrollmentID,
+	}
 
 	return GetCLMspConfig(dir, ID, sigid)
 }
@@ -475,26 +475,30 @@ func GetIdemixMspConfig(dir string, ID string) (*msp.MSPConfig, error) {
 
 const (
 	CLKGCPubs = "kgcpubs"
+	CLID      = "CLID"
 )
 
 func GetCLMspConfig(dir string, ID string, sigid *msp.CLMSPSignerConfig) (*msp.MSPConfig, error) {
 	KGCPubDir := filepath.Join(dir, CLKGCPubs)
-	admincertDir := filepath.Join(dir, admincerts)
+	adminconfigFile := filepath.Join(dir, CLID, "adminconfig")
 	intermediatecertsDir := filepath.Join(dir, intermediatecerts)
 	crlsDir := filepath.Join(dir, crlsfolder)
 	configFile := filepath.Join(dir, configfilename)
 	tlscacertDir := filepath.Join(dir, tlscacerts)
 	tlsintermediatecertsDir := filepath.Join(dir, tlsintermediatecerts)
 
-	kgcpubs, err := getPemMaterialFromDir(KGCPubDir)
+	kgcpubs, err := getRawMaterialFromDir(KGCPubDir)
 	if err != nil || len(kgcpubs) == 0 {
-		return nil, errors.WithMessage(err, fmt.Sprintf("could not load a valid kgc pubkeys from directory %s", KGCPubDir))
+		return nil, errors.WithMessage(err, fmt.Sprintf("could not load a valid kgc pubkeys from dir %s", KGCPubDir))
 	}
 
-	admincert, err := getPemMaterialFromDir(admincertDir)
-	if err != nil || len(admincert) == 0 {
-		return nil, errors.WithMessage(err, fmt.Sprintf("could not load a valid admin certificate from directory %s", admincertDir))
+	adminconfig := &idconfig.IdConfig{}
+	err = adminconfig.Load(adminconfigFile)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to load adminconfig from %s", adminconfigFile)
 	}
+	adminPA := make([][]byte, 0)
+	adminPA = append(adminPA, adminconfig.Pk)
 
 	//intermediatepubs, err := getPemMaterialFromDir(intermediatecertsDir)
 	if os.IsNotExist(err) {
@@ -612,7 +616,7 @@ func GetCLMspConfig(dir string, ID string, sigid *msp.CLMSPSignerConfig) (*msp.M
 
 	// Compose CLMSPConfig
 	fmspconf := &msp.CLMSPConfig{
-		Admins:  admincert,
+		Admins:  adminPA,
 		KGCPubs: kgcpubs,
 		//IntermediateCerts:             intermediatepubs,
 		CLSigningIdentity:             sigid,
