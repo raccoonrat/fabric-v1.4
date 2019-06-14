@@ -283,7 +283,7 @@ func KGCGetECPublicKey(priv bccsp.Key, name, keystorePath string) (*ecdsa.Public
 	return ecPubKey.(*ecdsa.PublicKey), pubKeyBytes, nil
 }
 
-func GenFinalKeyPair(ID string, ClientPrivateKey *ecdsa.PrivateKey, PartialPrivateKey []byte, PartialPublicKey []byte) ([]byte, error) {
+func GenFinalKeyPair(ID string, ClientPrivateKey *ecdsa.PrivateKey, PartialPublicKey []byte, PartialPrivateKey []byte) ([]byte, error) {
 
 	var buffer bytes.Buffer
 	n := ClientPrivateKey.Params().N
@@ -418,7 +418,7 @@ func GenSerial(za []byte) string {
 	return util.B64Encode(hash.Sum(nil))
 }
 
-func validateKey(dA []byte, P1 *ecdsa.PublicKey, Pa []byte, ID string) error {
+func ValidateKey(dA []byte, P1 ecdsa.PublicKey, Pa []byte, ID string) error {
 	c := elliptic.P256()
 	n := elliptic.P256().Params().N
 

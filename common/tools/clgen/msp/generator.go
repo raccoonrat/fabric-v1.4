@@ -82,7 +82,7 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 		return err
 	}
 
-	err = csp.validateKey(sk, signKGC.MasterKey.PublicKey, pa, name)
+	err = csp.ValidateKey(sk, signKGC.MasterKey.PublicKey, pa, name)
 	if err != nil {
 		return err
 	}

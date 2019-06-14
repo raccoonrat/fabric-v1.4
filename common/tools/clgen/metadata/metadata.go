@@ -21,7 +21,7 @@ var CommitSHA string
 // package-scoped constants
 
 // Program name
-const ProgramName = "cryptogen"
+const ProgramName = "clgen"
 
 func GetVersionInfo() string {
 	if CommitSHA == "" {
