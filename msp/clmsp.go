@@ -501,10 +501,11 @@ func (msp *clmsp) satisfiesPrincipalValidated(id Identity, principal *m.MSPPrinc
 			fallthrough
 		case m.MSPRole_PEER:
 			mspLogger.Debugf("Checking if identity satisfies role [%s] for %s", m.MSPRole_MSPRoleType_name[int32(mspRole.Role)], msp.name)
-
-			if err := msp.hasOURole(id, mspRole.Role); err != nil {
-				return errors.Wrapf(err, "The identity is not a [%s] under this MSP [%s]", m.MSPRole_MSPRoleType_name[int32(mspRole.Role)], msp.name)
-			}
+			/*
+				if err := msp.hasOURole(id, mspRole.Role); err != nil {
+					return errors.Wrapf(err, "The identity is not a [%s] under this MSP [%s]", m.MSPRole_MSPRoleType_name[int32(mspRole.Role)], msp.name)
+				}
+			*/
 			return nil
 		default:
 			return errors.Errorf("invalid MSP role type %d", int32(mspRole.Role))

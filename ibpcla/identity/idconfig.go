@@ -3,8 +3,8 @@ package ibpcla
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 
-	"github.com/hyperledger/fabric-ca/util"
 	"github.com/pkg/errors"
 )
 
@@ -69,7 +69,7 @@ func (i *IdConfig) Store(path string) error {
 	if err != nil {
 		return errors.Wrapf(err, "Failed to marshal IDConfig")
 	}
-	err = util.WriteFile(path, idConfigBytes, 0644)
+	err = ioutil.WriteFile(path, idConfigBytes, 0644)
 	if err != nil {
 		return errors.WithMessage(err, "Failed to store the IDconfig")
 	}
@@ -79,7 +79,7 @@ func (i *IdConfig) Store(path string) error {
 // Load loads the ibpcla config from the location specified by the
 // IDConfigFile attribute
 func (i *IdConfig) Load(path string) error {
-	idConfigBytes, err := util.ReadFile(path)
+	idConfigBytes, err := ioutil.ReadFile(path)
 	if err != nil {
 		fmt.Printf("No ibpcla config found at %s: %s", path, err.Error())
 	}
