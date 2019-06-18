@@ -7,8 +7,8 @@ package cryptocl
 
 import (
 	"crypto/ecdsa"
+	"crypto/x509"
 	"fmt"
-	"math/big"
 
 	"github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric/bccsp/utils"
@@ -67,21 +67,20 @@ func RecoverPub(opts *bccsp.CLVerifierOpts) (*ecdsa.PublicKey, error) {
 	if PA == nil {
 		return nil, errors.New("can not load PA from opts")
 	}
-	fmt.Printf("rootPub_X:%02X\n", rootPub.X.Bytes())
-	fmt.Printf("rootPub_Y:%02X\n", rootPub.Y.Bytes())
-	fmt.Printf("PA:%02X\n", PA)
 	c := rootPub.Curve
 	if c == nil {
 		return nil, errors.New("can not load curve parameters from root public key")
 	}
 
 	N := c.Params().N
-
-	PAx := new(big.Int).SetBytes(PA[0:32])
-	PAy := new(big.Int).SetBytes(PA[32:64])
+	puba, err := x509.ParsePKIXPublicKey(PA)
+	if err != nil {
+		return nil, err
+	}
+	pa := puba.(*ecdsa.PublicKey)
 
 	//Pub = e0*PA + e1*rootPub
-	x1, y1 := c.ScalarMult(PAx, PAy, HID[0:15])
+	x1, y1 := c.ScalarMult(pa.X, pa.Y, HID[0:15])
 	x2, y2 := c.ScalarMult(rootPub.X, rootPub.Y, HID[16:31])
 	x, y := c.Add(x1, y1, x2, y2)
 	x.Mod(x, N)

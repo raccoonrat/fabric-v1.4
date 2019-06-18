@@ -103,12 +103,11 @@ func (msp *clmsp) setupKGCs(conf *m.CLMSPConfig) error {
 func (msp *clmsp) setupAdmins(conf *m.CLMSPConfig) error {
 	// make and fill the set of admin PAs (if present)
 	msp.admins = make([]clidentity, len(conf.Admins))
-	for i, admPA := range conf.Admins {
-		id, err := msp.getclIdentityFromConf(admPA)
+	for i, admconf := range conf.Admins {
+		id, err := msp.getclAdminIdentityFromConf(admconf)
 		if err != nil {
 			return err
 		}
-
 		msp.admins[i] = *id
 	}
 
@@ -208,7 +207,6 @@ func (msp *clmsp) setupSigningIdentity(conf *m.CLMSPConfig) error {
 		if err != nil {
 			return err
 		}
-
 		msp.signer = sid
 	}
 
@@ -352,11 +350,12 @@ func (msp *clmsp) preSetupV1(conf *m.CLMSPConfig) error {
 		return err
 	}
 
-	// setup the OUs
-	if err := msp.setupOUs(conf); err != nil {
-		return err
-	}
-
+	/*
+		// setup the OUs
+		if err := msp.setupOUs(conf); err != nil {
+			return err
+		}
+	*/
 	return nil
 }
 

@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -21,6 +22,7 @@ import (
 	"github.com/hyperledger/fabric/bccsp/cl/signer"
 	"github.com/hyperledger/fabric/bccsp/sw"
 	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric/protos/msp"
 	m "github.com/hyperledger/fabric/protos/msp"
 	"github.com/pkg/errors"
 )
@@ -113,7 +115,7 @@ func (msp *clmsp) getCertFromPem(idBytes []byte) (*x509.Certificate, error) {
 	return cert, nil
 }
 
-func (msp *clmsp) getclIdentityFromConf(PABytes []byte) (*clidentity, error) {
+func (msp *clmsp) getclAdminIdentityFromConf(adminconfig *msp.CLMSPAdminConfig) (*clidentity, error) {
 
 	// get the PA in the right format
 	/*
@@ -123,6 +125,10 @@ func (msp *clmsp) getclIdentityFromConf(PABytes []byte) (*clidentity, error) {
 
 		}
 	*/
+	KGCID, err := msp.rootPubs[0].Bytes()
+	if err != nil {
+		return nil, errors.WithMessage(err, "getAdminIdentityFromConf error: Failed to load KGCID")
+	}
 
 	// Use the hash of the identity's certificate as id in the IdentityIdentifier
 	hashOpt, err := bccsp.GetHashOpt(msp.cryptoConfig.IdentityIdentifierHashFunction)
@@ -130,16 +136,36 @@ func (msp *clmsp) getclIdentityFromConf(PABytes []byte) (*clidentity, error) {
 		return nil, errors.WithMessage(err, "failed getting hash function options")
 	}
 
-	digest, err := msp.csp.Hash(PABytes, hashOpt)
+	digest, err := msp.csp.Hash(adminconfig.PA, hashOpt)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed hashing PA to compute the id of the IdentityIdentifier")
+	}
+	//set OU and Role
+	ou := &m.OrganizationUnit{
+		MspIdentifier:                msp.name,
+		OrganizationalUnitIdentifier: adminconfig.OU,
+		CertifiersIdentifier:         KGCID,
+	}
+	if strings.ToUpper(adminconfig.Role) != m.MSPRole_ADMIN.String() {
+		return nil, errors.New("failed generate admin identity from config, Role is not ADMIN")
+	}
+	role := &m.MSPRole{
+		MspIdentifier: msp.name,
+		Role:          m.MSPRole_ADMIN,
 	}
 
 	id := &IdentityIdentifier{
 		Mspid: msp.name,
 		Id:    hex.EncodeToString(digest)}
 
-	return &clidentity{id: id, PA: PABytes, msp: msp}, nil
+	return &clidentity{
+		PA:     adminconfig.PA,
+		id:     id,
+		msp:    msp,
+		nameID: adminconfig.ID,
+		OU:     ou,
+		Role:   role,
+	}, nil
 }
 
 /*
@@ -185,6 +211,11 @@ func (msp *clmsp) getSigningIdentityFromConf(sidInfo *m.CLMSPSignerConfig) (Sign
 	if sidInfo == nil {
 		return nil, errors.New("getIdentityFromBytes error: nil sidInfo")
 	}
+	//msp.getKGCIdentifier
+	KGCID, err := msp.rootPubs[0].Bytes()
+	if err != nil {
+		return nil, errors.WithMessage(err, "getIdentityFromBytes error: Failed to load KGCID")
+	}
 	/*
 			pemKey, _ := pem.Decode(sidInfo.Sk)
 			if pemKey == nil {
@@ -202,8 +233,21 @@ func (msp *clmsp) getSigningIdentityFromConf(sidInfo *m.CLMSPSignerConfig) (Sign
 	if err != nil {
 		return nil, errors.WithMessage(err, "getIdentityFromBytes error: Failed initializing bccspCryptoSigner")
 	}
-
-	return newCLSigningIdentity(sidInfo.PA, sidInfo.ID, peerSigner, msp)
+	//set OU and Role
+	ou := &m.OrganizationUnit{
+		MspIdentifier:                msp.name,
+		OrganizationalUnitIdentifier: sidInfo.OU,
+		CertifiersIdentifier:         KGCID,
+	}
+	role := &m.MSPRole{
+		MspIdentifier: msp.name,
+		Role:          m.MSPRole_MEMBER,
+	}
+	//m.MSPRole_MEMBER,
+	if strings.ToUpper(sidInfo.Role) == m.MSPRole_ADMIN.String() {
+		role.Role = m.MSPRole_ADMIN
+	}
+	return newCLSigningIdentity(sidInfo.PA, sidInfo.ID, ou, role, peerSigner, msp)
 }
 
 // Setup sets up the internal data structures
@@ -384,7 +428,20 @@ func (msp *clmsp) deserializeIdentityInternal(serializedIdentity []byte) (Identi
 	}
 
 	mspLogger.Debug("clmsp: deserializing identity", serialized.ID)
-	return newclIdentity(serialized.PA, msp, serialized.ID)
+
+	//OU
+	ou := &m.OrganizationUnit{}
+	err = proto.Unmarshal(serialized.Ou, ou)
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot deserialize the OU of the identity")
+	}
+	//Role
+	role := &m.MSPRole{}
+	err = proto.Unmarshal(serialized.Role, role)
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot deserialize the role of the identity")
+	}
+	return newclIdentity(serialized.PA, msp, serialized.ID, ou, role)
 }
 
 // SatisfiesPrincipal returns null if the identity matches the principal or an error otherwise
@@ -415,7 +472,7 @@ func (msp *clmsp) satisfiesPrincipalValidated(id Identity, principal *m.MSPPrinc
 		// at first, we check whether the MSP
 		// identifier is the same as that of the identity
 		if mspRole.MspIdentifier != msp.name {
-			//return errors.Errorf("the identity is a member of a different MSP (expected %s, got %s)", mspRole.MspIdentifier, id.GetMSPIdentifier())
+			return errors.Errorf("the identity is a member of a different MSP (expected %s, got %s)", mspRole.MspIdentifier, id.GetMSPIdentifier())
 		}
 
 		// now we validate the different msp roles
@@ -424,13 +481,15 @@ func (msp *clmsp) satisfiesPrincipalValidated(id Identity, principal *m.MSPPrinc
 			// in the case of member, we simply check
 			// whether this identity is valid for the MSP
 			mspLogger.Debugf("Checking if identity satisfies MEMBER role for %s", msp.name)
-			return msp.Validate(id)
+			//return msp.Validate(id)
+			return nil
 		case m.MSPRole_ADMIN:
 			mspLogger.Debugf("Checking if identity satisfies ADMIN role for %s", msp.name)
 			// in the case of admin, we check that the
 			// id is exactly one of our admins
-			for _, admincert := range msp.admins {
-				if bytes.Equal(id.(*clidentity).PA, admincert.PA) {
+			//if id.(*clidentity).Role.Role != m.MSPRole_ADMIN {
+			for _, adminidentity := range msp.admins {
+				if adminidentity.Role.Role == m.MSPRole_ADMIN {
 					// we do not need to check whether the admin is a valid identity
 					// according to this MSP, since we already check this at Setup time
 					// if there is a match, we can just return
@@ -442,9 +501,6 @@ func (msp *clmsp) satisfiesPrincipalValidated(id Identity, principal *m.MSPPrinc
 			fallthrough
 		case m.MSPRole_PEER:
 			mspLogger.Debugf("Checking if identity satisfies role [%s] for %s", m.MSPRole_MSPRoleType_name[int32(mspRole.Role)], msp.name)
-			if err := msp.Validate(id); err != nil {
-				return errors.Wrapf(err, "The identity is not valid under this MSP [%s]", msp.name)
-			}
 
 			if err := msp.hasOURole(id, mspRole.Role); err != nil {
 				return errors.Wrapf(err, "The identity is not a [%s] under this MSP [%s]", m.MSPRole_MSPRoleType_name[int32(mspRole.Role)], msp.name)
@@ -482,21 +538,14 @@ func (msp *clmsp) satisfiesPrincipalValidated(id Identity, principal *m.MSPPrinc
 
 		// we then check if the identity is valid with this MSP
 		// and fail if it is not
-		err = msp.Validate(id)
-		if err != nil {
-			return err
+		if OU.OrganizationalUnitIdentifier != id.(*clidentity).OU.OrganizationalUnitIdentifier {
+			return errors.Errorf("user is not part of the desired organizationalunit")
+		}
+		if !bytes.Equal(OU.CertifiersIdentifier, OU.CertifiersIdentifier) {
+			return errors.Errorf("OU CertifiersIdentifier not match")
 		}
 
-		// now we check whether any of this identity's OUs match the requested one
-		for _, ou := range id.GetOrganizationalUnits() {
-			if ou.OrganizationalUnitIdentifier == OU.OrganizationalUnitIdentifier &&
-				bytes.Equal(ou.CertifiersIdentifier, OU.CertifiersIdentifier) {
-				return nil
-			}
-		}
-
-		// if we are here, no match was found, return an error
-		return errors.New("The identities do not match")
+		return nil
 	case m.MSPPrincipal_COMBINED:
 		if msp.version <= MSPv1_1 {
 			return errors.Errorf("Combined MSP Principals are unsupported before MSPv1_2")

@@ -12,7 +12,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/pem"
-	"fmt"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -39,9 +38,15 @@ type clidentity struct {
 
 	//true ID
 	nameID string
+
+	//ou
+	OU *m.OrganizationUnit
+
+	//Role
+	Role *m.MSPRole
 }
 
-func newclIdentity(PA []byte, msp *clmsp, ID string) (Identity, error) {
+func newclIdentity(PA []byte, msp *clmsp, ID string, ou *m.OrganizationUnit, role *m.MSPRole) (Identity, error) {
 	if mspclIdentityLogger.IsEnabledFor(zapcore.DebugLevel) {
 		mspclIdentityLogger.Debugf("Creating identity instance for KGC")
 	}
@@ -69,7 +74,14 @@ func newclIdentity(PA []byte, msp *clmsp, ID string) (Identity, error) {
 
 	mspclIdentityLogger.Debugf("id.Mspid:", msp.name)
 	mspclIdentityLogger.Debugf("id.Id:", id.Id)
-	return &clidentity{PA: PA, id: id, msp: msp, nameID: ID}, nil
+	return &clidentity{
+		PA:     PA,
+		id:     id,
+		msp:    msp,
+		nameID: ID,
+		OU:     ou,
+		Role:   role,
+	}, nil
 }
 
 // ExpiresAt returns the time at which the Identity expires.
@@ -100,40 +112,41 @@ func (id *clidentity) Validate() error {
 
 // GetOrganizationalUnits returns the OU for this instance
 func (id *clidentity) GetOrganizationalUnits() []*OUIdentifier {
-
-	if id.msp.ouIdentifiers == nil {
-		mspIdentityLogger.Errorf("Failed to get OrganizationalUnitIdentifier in GetOrganizationalUnits")
-		return nil
-	}
-
-	res := []*OUIdentifier{}
-
-	for k, v := range id.msp.ouIdentifiers {
-		if v == nil {
+	//todo
+	/*
+		if id.msp.ouIdentifiers == nil {
 			mspIdentityLogger.Errorf("Failed to get OrganizationalUnitIdentifier in GetOrganizationalUnits")
 			return nil
 		}
-		res = append(res, &OUIdentifier{
-			CertifiersIdentifier:         v[0],
-			OrganizationalUnitIdentifier: k,
-		})
 
-		cid, err := id.msp.getPAIdentifier(id)
-		if err != nil {
-			mspIdentityLogger.Errorf("Failed to get PA Identifier")
+		res := []*OUIdentifier{}
+
+		for k, v := range id.msp.ouIdentifiers {
+			if v == nil {
+				mspIdentityLogger.Errorf("Failed to get OrganizationalUnitIdentifier in GetOrganizationalUnits")
+				return nil
+			}
+			res = append(res, &OUIdentifier{
+				CertifiersIdentifier:         v[0],
+				OrganizationalUnitIdentifier: k,
+			})
+
+			cid, err := id.msp.getPAIdentifier(id)
+			if err != nil {
+				mspIdentityLogger.Errorf("Failed to get PA Identifier")
+				return nil
+			}
+			res = append(res, &OUIdentifier{
+				CertifiersIdentifier:         cid,
+				OrganizationalUnitIdentifier: k,
+			})
+		}
+
+		if len(res) == 0 {
 			return nil
 		}
-		res = append(res, &OUIdentifier{
-			CertifiersIdentifier:         cid,
-			OrganizationalUnitIdentifier: k,
-		})
-	}
-
-	if len(res) == 0 {
-		return nil
-	}
-
-	return res
+	*/
+	return []*OUIdentifier{{id.OU.CertifiersIdentifier, id.OU.OrganizationalUnitIdentifier}}
 }
 
 // Anonymous returns true if this clidentity provides anonymity
@@ -156,6 +169,7 @@ func NewSerializedclIdentity(mspID, nameID string, certPEM []byte) ([]byte, erro
 	CLIDBytes, err := proto.Marshal(serialized)
 
 	sId := &msp.SerializedIdentity{Mspid: mspID, IdBytes: CLIDBytes}
+
 	raw, err := proto.Marshal(sId)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed serializing clidentity [%s][%X]", mspID, certPEM)
@@ -191,9 +205,6 @@ func (id *clidentity) Verify(msg []byte, sig []byte) error {
 	if err != nil {
 		return errors.WithMessage(err, "failed computing HID")
 	}
-	fmt.Printf("ID:%s\n", id.nameID)
-	fmt.Printf("PA:%02X\n", id.PA)
-	fmt.Printf("HID:%02X\n", HID)
 
 	if mspclIdentityLogger.IsEnabledFor(zapcore.DebugLevel) {
 		mspclIdentityLogger.Debugf("IBPCLA Verify: digest = %s", hex.Dump(digest))
@@ -224,8 +235,19 @@ func (id *clidentity) Serialize() ([]byte, error) {
 	// mspclIdentityLogger.Infof("Serializing clidentity %s", id.id)
 	serialized := &m.SerializedIBPCLAIdentity{}
 
+	ouBytes, err := proto.Marshal(id.OU)
+	if err != nil {
+		return nil, errors.Wrapf(err, "could not marshal OU of clidentity %s", id.nameID)
+	}
+	roleBytes, err := proto.Marshal(id.Role)
+	if err != nil {
+		return nil, errors.Wrapf(err, "could not marshal role of clidentity %s", id.nameID)
+	}
+
 	serialized.PA = id.PA
 	serialized.ID = id.nameID
+	serialized.Ou = ouBytes
+	serialized.Role = roleBytes
 
 	CLIDBytes, err := proto.Marshal(serialized)
 	if err != nil {
@@ -259,7 +281,7 @@ type clsigningidentity struct {
 	signer crypto.Signer
 }
 
-func newCLSigningIdentity(PA []byte, ID string, signer crypto.Signer, msp *clmsp) (SigningIdentity, error) {
+func newCLSigningIdentity(PA []byte, ID string, ou *m.OrganizationUnit, role *m.MSPRole, signer crypto.Signer, msp *clmsp) (SigningIdentity, error) {
 	//mspclIdentityLogger.Infof("Creating cl signing identity instance for ID %s", id)
 	/*
 		block, _ := pem.Decode(PA)
@@ -268,7 +290,7 @@ func newCLSigningIdentity(PA []byte, ID string, signer crypto.Signer, msp *clmsp
 
 		}
 	*/
-	mspId, err := newclIdentity(PA, msp, ID)
+	mspId, err := newclIdentity(PA, msp, ID, ou, role)
 	if err != nil {
 		return nil, err
 	}
@@ -310,29 +332,30 @@ func (id *clsigningidentity) GetPublicVersion() Identity {
 func (id *clidentity) validateIdentity() error {
 	// Check that the identity's OUs are compatible with those recognized by this MSP,
 	// meaning that the intersection is not empty.
-	if len(id.msp.ouIdentifiers) > 0 {
-		found := false
+	/*
+		if len(id.msp.ouIdentifiers) > 0 {
+			found := false
 
-		for _, OU := range id.GetOrganizationalUnits() {
-			certificationIDs, exists := id.msp.ouIdentifiers[OU.OrganizationalUnitIdentifier]
+			for _, OU := range id.GetOrganizationalUnits() {
+				certificationIDs, exists := id.msp.ouIdentifiers[OU.OrganizationalUnitIdentifier]
 
-			if exists {
-				for _, certificationID := range certificationIDs {
-					if bytes.Equal(certificationID, OU.CertifiersIdentifier) {
-						found = true
-						break
+				if exists {
+					for _, certificationID := range certificationIDs {
+						if bytes.Equal(certificationID, OU.CertifiersIdentifier) {
+							found = true
+							break
+						}
 					}
 				}
 			}
-		}
 
-		if !found {
-			if len(id.GetOrganizationalUnits()) == 0 {
-				return errors.New("the identity certificate does not contain an Organizational Unit (OU)")
+			if !found {
+				if len(id.GetOrganizationalUnits()) == 0 {
+					return errors.New("the identity certificate does not contain an Organizational Unit (OU)")
+				}
+				return errors.Errorf("none of the identity's organizational units [%v] are in MSP %s", id.GetOrganizationalUnits(), id.msp.name)
 			}
-			return errors.Errorf("none of the identity's organizational units [%v] are in MSP %s", id.GetOrganizationalUnits(), id.msp.name)
 		}
-	}
-
+	*/
 	return nil
 }

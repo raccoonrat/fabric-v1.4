@@ -1,8 +1,1 @@
-NodeOUs:
-  Enable: true
-  ClientOUIdentifier:
-    Certificate: kgcpubs/kgc.org1.example.com-pubkey
-    OrganizationalUnitIdentifier: client
-  PeerOUIdentifier:
-    Certificate: kgcpubs/kgc.org1.example.com-pubkey
-    OrganizationalUnitIdentifier: peer
+{}

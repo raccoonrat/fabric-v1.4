@@ -331,7 +331,6 @@ func storePrivateKey(keystorePath string, finalPrivateKey *ecdsa.PrivateKey) err
 }
 
 func PrivateKeyToPEM(k *ecdsa.PrivateKey) ([]byte, error) {
-
 	// get the oid for the curve
 	oidNamedCurve, ok := oidFromNamedCurve(k.Curve)
 	if !ok {
@@ -364,13 +363,15 @@ func PrivateKeyToPEM(k *ecdsa.PrivateKey) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling EC key to asn1 [%s]", err)
 	}
-	return pem.EncodeToMemory(
-		&pem.Block{
-			Type:  "PRIVATE KEY",
-			Bytes: pkcs8Bytes,
-		},
-	), nil
-
+	return pkcs8Bytes, nil
+	/*
+		return pem.EncodeToMemory(
+			&pem.Block{
+				Type:  "PRIVATE KEY",
+				Bytes: pkcs8Bytes,
+			},
+		), nil
+	*/
 }
 
 func oidFromNamedCurve(curve elliptic.Curve) (asn1.ObjectIdentifier, bool) {
@@ -459,4 +460,53 @@ func ValidateKey(dA []byte, P1 ecdsa.PublicKey, Pa []byte, ID string) error {
 	}
 	return nil
 
+}
+
+func PrivateKeyToDER(d []byte, c elliptic.Curve) ([]byte, error) {
+	k := new(ecdsa.PrivateKey)
+	k.Curve = c
+	k.D = new(big.Int).SetBytes(d)
+	k.PublicKey.X, k.PublicKey.Y = c.ScalarBaseMult(d)
+
+	// get the oid for the curve
+	oidNamedCurve, ok := oidFromNamedCurve(k.Curve)
+	if !ok {
+		return nil, errors.New("unknown elliptic curve")
+	}
+
+	// based on https://golang.org/src/crypto/x509/sec1.go
+	privateKeyBytes := k.D.Bytes()
+	paddedPrivateKey := make([]byte, (k.Curve.Params().N.BitLen()+7)/8)
+	copy(paddedPrivateKey[len(paddedPrivateKey)-len(privateKeyBytes):], privateKeyBytes)
+	// omit NamedCurveOID for compatibility as it's optional
+	asn1Bytes, err := asn1.Marshal(ecPrivateKey{
+		Version:    1,
+		PrivateKey: paddedPrivateKey,
+		PublicKey:  asn1.BitString{Bytes: elliptic.Marshal(k.Curve, k.X, k.Y)},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling EC key to asn1 [%s]", err)
+	}
+
+	var pkcs8Key pkcs8Info
+	pkcs8Key.Version = 0
+	pkcs8Key.PrivateKeyAlgorithm = make([]asn1.ObjectIdentifier, 2)
+	pkcs8Key.PrivateKeyAlgorithm[0] = oidPublicKeyECDSA
+	pkcs8Key.PrivateKeyAlgorithm[1] = oidNamedCurve
+	pkcs8Key.PrivateKey = asn1Bytes
+
+	pkcs8Bytes, err := asn1.Marshal(pkcs8Key)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling EC key to asn1 [%s]", err)
+	}
+	return pkcs8Bytes, nil
+	/*
+		return pem.EncodeToMemory(
+			&pem.Block{
+				Type:  "PRIVATE KEY",
+				Bytes: pkcs8Bytes,
+			},
+		), nil
+	*/
 }

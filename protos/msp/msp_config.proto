@@ -219,7 +219,7 @@ message CLMSPConfig {
     repeated bytes KGC_pubs = 2;
 
     // Identity denoting the administrator of this MSP
-    repeated bytes admins = 3;
+    repeated CLMSPAdminConfig admins = 3;
 
     // Identity revocation list
     repeated bytes revocation_list = 4;
@@ -251,7 +251,7 @@ message CLMSPConfig {
     FabricNodeOUs fabric_node_ous = 10;
 }
 
-// IdemixMSPSIgnerConfig contains the crypto material to set up an idemix signing identity
+// IBPCLAMSPSIgnerConfig contains the crypto material to set up an ibpcla signing identity
 message CLMSPSignerConfig {
 
     // sk is the secret key of the default signer, corresponding to credential Cred
@@ -260,6 +260,28 @@ message CLMSPSignerConfig {
     // PA is the vice identity of the signer
     bytes PA = 2;
 
+    // ou defines the organizational unit the default signer is in
+    string OU = 3;
+
+    // role defines whether the default signer is admin, peer, member or client
+    string Role = 4;
+
     // ID is the identity of the signer
-    string ID = 3;
+    string ID = 5;
+}
+
+// IBPCLAMSPAdminConfig contains the crypto material to set up an ibpcla admin identity
+message CLMSPAdminConfig {
+
+    // PA is the vice identity of the admin 
+    bytes PA = 1;
+
+    // ou defines the organizational unit the default admin is in
+    string OU = 2;
+
+    // role defines whether the default signer is admin, peer, member or client
+    string Role = 3;
+
+    // ID is the identity of the admin 
+    string ID = 4;
 }

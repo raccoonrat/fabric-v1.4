@@ -86,6 +86,10 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 	if err != nil {
 		return err
 	}
+	skDER, err := csp.PrivateKeyToDER(sk, elliptic.P256())
+	if err != nil {
+		return err
+	}
 
 	serial := csp.GenSerial(za)
 	if err != nil {
@@ -107,7 +111,7 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 	}
 	IDConfig := &idconfig.IdConfig{
 		Pk:                           pa,
-		Sk:                           sk,
+		Sk:                           skDER,
 		Serial:                       serial,
 		EnrollmentID:                 name,
 		OrganizationalUnitIdentifier: signKGC.Organization,
