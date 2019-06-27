@@ -14,6 +14,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/asn1"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
 	"fmt"
@@ -23,7 +24,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hyperledger/fabric-ca/util"
 	"github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric/bccsp/factory"
 	"github.com/hyperledger/fabric/bccsp/signer"
@@ -418,7 +418,7 @@ func LoadCLPrivateKey(KGCPath string, ski []byte) (*ecdsa.PrivateKey, error) {
 func GenSerial(za []byte) string {
 	hash := sha256.New()
 	hash.Write(za)
-	return util.B64Encode(hash.Sum(nil))
+	return base64.StdEncoding.EncodeToString(hash.Sum(nil))
 }
 
 func ValidateKey(dA []byte, P1 ecdsa.PublicKey, Pa []byte, ID, OU, Role string) error {
