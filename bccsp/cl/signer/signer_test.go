@@ -16,106 +16,103 @@ limitations under the License.
 package signer
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"errors"
+	"crypto"
+	"io"
+	"reflect"
 	"testing"
 
-	"github.com/hyperledger/fabric/bccsp/mocks"
-	"github.com/hyperledger/fabric/bccsp/utils"
-	"github.com/stretchr/testify/assert"
+	"github.com/hyperledger/fabric/bccsp"
 )
 
-func TestInitFailures(t *testing.T) {
-	_, err := New(nil, &mocks.MockKey{})
-	assert.Error(t, err)
-
-	_, err = New(&mocks.MockBCCSP{}, nil)
-	assert.Error(t, err)
-
-	_, err = New(&mocks.MockBCCSP{}, &mocks.MockKey{Symm: true})
-	assert.Error(t, err)
-
-	_, err = New(&mocks.MockBCCSP{}, &mocks.MockKey{PKErr: errors.New("No PK")})
-	assert.Error(t, err)
-	assert.Equal(t, "failed getting public key: No PK", err.Error())
-
-	_, err = New(&mocks.MockBCCSP{}, &mocks.MockKey{PK: &mocks.MockKey{BytesErr: errors.New("No bytes")}})
-	assert.Error(t, err)
-	assert.Equal(t, "failed marshalling public key: No bytes", err.Error())
-
-	_, err = New(&mocks.MockBCCSP{}, &mocks.MockKey{PK: &mocks.MockKey{BytesValue: []byte{0, 1, 2, 3}}})
-	assert.Error(t, err)
+func TestNew(t *testing.T) {
+	type args struct {
+		csp bccsp.BCCSP
+		key bccsp.Key
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    crypto.Signer
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := New(tt.args.csp, tt.args.key)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("New() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("New() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
 
-func TestInit(t *testing.T) {
-	k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	assert.NoError(t, err)
-	pkRaw, err := utils.PublicKeyToDER(&k.PublicKey)
-	assert.NoError(t, err)
-
-	signer, err := New(&mocks.MockBCCSP{}, &mocks.MockKey{PK: &mocks.MockKey{BytesValue: pkRaw}})
-	assert.NoError(t, err)
-	assert.NotNil(t, signer)
-
-	// Test public key
-	R, S, err := ecdsa.Sign(rand.Reader, k, []byte{0, 1, 2, 3})
-	assert.NoError(t, err)
-
-	assert.True(t, ecdsa.Verify(signer.Public().(*ecdsa.PublicKey), []byte{0, 1, 2, 3}, R, S))
+func Test_clCryptoSigner_Public(t *testing.T) {
+	type fields struct {
+		csp bccsp.BCCSP
+		key bccsp.Key
+		pk  interface{}
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   crypto.PublicKey
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &clCryptoSigner{
+				csp: tt.fields.csp,
+				key: tt.fields.key,
+				pk:  tt.fields.pk,
+			}
+			if got := s.Public(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("clCryptoSigner.Public() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
 
-func TestPublic(t *testing.T) {
-	pk := &mocks.MockKey{}
-	signer := &bccspCryptoSigner{pk: pk}
-
-	pk2 := signer.Public()
-	assert.NotNil(t, pk, pk2)
-}
-
-func TestSign(t *testing.T) {
-	expectedSig := []byte{0, 1, 2, 3, 4}
-	expectedKey := &mocks.MockKey{}
-	expectedDigest := []byte{0, 1, 2, 3, 4, 5}
-	expectedOpts := &mocks.SignerOpts{}
-
-	signer := &bccspCryptoSigner{
-		key: expectedKey,
-		csp: &mocks.MockBCCSP{
-			SignArgKey: expectedKey, SignDigestArg: expectedDigest, SignOptsArg: expectedOpts,
-			SignValue: expectedSig}}
-	signature, err := signer.Sign(nil, expectedDigest, expectedOpts)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedSig, signature)
-
-	signer = &bccspCryptoSigner{
-		key: expectedKey,
-		csp: &mocks.MockBCCSP{
-			SignArgKey: expectedKey, SignDigestArg: expectedDigest, SignOptsArg: expectedOpts,
-			SignErr: errors.New("no signature")}}
-	signature, err = signer.Sign(nil, expectedDigest, expectedOpts)
-	assert.Error(t, err)
-	assert.Equal(t, err.Error(), "no signature")
-
-	signer = &bccspCryptoSigner{
-		key: nil,
-		csp: &mocks.MockBCCSP{SignArgKey: expectedKey, SignDigestArg: expectedDigest, SignOptsArg: expectedOpts}}
-	_, err = signer.Sign(nil, expectedDigest, expectedOpts)
-	assert.Error(t, err)
-	assert.Equal(t, err.Error(), "invalid key")
-
-	signer = &bccspCryptoSigner{
-		key: expectedKey,
-		csp: &mocks.MockBCCSP{SignArgKey: expectedKey, SignDigestArg: expectedDigest, SignOptsArg: expectedOpts}}
-	_, err = signer.Sign(nil, nil, expectedOpts)
-	assert.Error(t, err)
-	assert.Equal(t, err.Error(), "invalid digest")
-
-	signer = &bccspCryptoSigner{
-		key: expectedKey,
-		csp: &mocks.MockBCCSP{SignArgKey: expectedKey, SignDigestArg: expectedDigest, SignOptsArg: expectedOpts}}
-	_, err = signer.Sign(nil, expectedDigest, nil)
-	assert.Error(t, err)
-	assert.Equal(t, err.Error(), "invalid opts")
+func Test_clCryptoSigner_Sign(t *testing.T) {
+	type fields struct {
+		csp bccsp.BCCSP
+		key bccsp.Key
+		pk  interface{}
+	}
+	type args struct {
+		rand   io.Reader
+		digest []byte
+		opts   crypto.SignerOpts
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    []byte
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &clCryptoSigner{
+				csp: tt.fields.csp,
+				key: tt.fields.key,
+				pk:  tt.fields.pk,
+			}
+			got, err := s.Sign(tt.args.rand, tt.args.digest, tt.args.opts)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("clCryptoSigner.Sign() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("clCryptoSigner.Sign() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

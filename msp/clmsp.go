@@ -594,8 +594,6 @@ func (msp *clmsp) satisfiesPrincipalValidated(id Identity, principal *m.MSPPrinc
 		default:
 			return errors.Errorf("Unknown principal anonymity type: %d", anon.AnonymityType)
 		}
-		// if no match was found , return an error
-		return errors.New("The clidentities do not match")
 	default:
 		return errors.Errorf("invalid principal type %d", int32(principal.PrincipalClassification))
 	}

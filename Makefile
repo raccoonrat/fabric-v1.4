@@ -209,7 +209,8 @@ docker: $(patsubst %,$(BUILD_DIR)/image/%/$(DUMMY), $(IMAGES))
 
 native: peer orderer configtxgen cryptogen clgen idemixgen configtxlator discover
 
-linter: check-deps buildenv
+#linter: check-deps buildenv
+linter: buildenv
 	@echo "LINT: Running code checks.."
 	@$(DRUN) $(DOCKER_NS)/fabric-buildenv:$(DOCKER_TAG) ./scripts/golinter.sh
 

@@ -10,7 +10,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"encoding/asn1"
-	"math/big"
 	"reflect"
 	"testing"
 
@@ -129,27 +128,31 @@ func TestGetECPublicKey(t *testing.T) {
 	}
 }
 
-func TestKGCGeneratePrivateKey(t *testing.T) {
+func TestKGCGenerateMasterKey(t *testing.T) {
 	type args struct {
 		keystorePath string
 	}
 	tests := []struct {
 		name    string
 		args    args
-		want    bccsp.Key
+		want    *ecdsa.PrivateKey
+		want1   []byte
 		wantErr bool
 	}{
 		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := KGCGeneratePrivateKey(tt.args.keystorePath)
+			got, got1, err := KGCGenerateMasterKey(tt.args.keystorePath)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("KGCGeneratePrivateKey() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("KGCGenerateMasterKey() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("KGCGeneratePrivateKey() = %v, want %v", got, tt.want)
+				t.Errorf("KGCGenerateMasterKey() got = %v, want %v", got, tt.want)
+			}
+			if !reflect.DeepEqual(got1, tt.want1) {
+				t.Errorf("KGCGenerateMasterKey() got1 = %v, want %v", got1, tt.want1)
 			}
 		})
 	}
@@ -215,73 +218,30 @@ func TestKGCGetECPublicKey(t *testing.T) {
 
 func TestGenFinalKeyPair(t *testing.T) {
 	type args struct {
-		keystorePath      string
-		name              string
-		ClientPrivateKey  *ecdsa.PrivateKey
-		PartialPrivateKey []byte
-		PartialPublicKey  []byte
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := GenFinalKeyPair(tt.args.keystorePath, tt.args.name, tt.args.ClientPrivateKey, tt.args.PartialPrivateKey, tt.args.PartialPublicKey); (err != nil) != tt.wantErr {
-				t.Errorf("GenFinalKeyPair() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func TestGenFinalKeyPairInternal(t *testing.T) {
-	type args struct {
 		ID                string
+		OU                string
+		Role              string
 		ClientPrivateKey  *ecdsa.PrivateKey
-		PartialPrivateKey []byte
 		PartialPublicKey  []byte
+		PartialPrivateKey []byte
 	}
 	tests := []struct {
 		name    string
 		args    args
-		want    *big.Int
+		want    []byte
 		wantErr bool
 	}{
 		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := GenFinalKeyPairInternal(tt.args.ID, tt.args.ClientPrivateKey, tt.args.PartialPrivateKey, tt.args.PartialPublicKey)
+			got, err := GenFinalKeyPair(tt.args.ID, tt.args.OU, tt.args.Role, tt.args.ClientPrivateKey, tt.args.PartialPublicKey, tt.args.PartialPrivateKey)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("GenFinalKeyPairInternal() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("GenFinalKeyPair() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("GenFinalKeyPairInternal() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_storePrivateKey(t *testing.T) {
-	type args struct {
-		keystorePath    string
-		finalPrivateKey *ecdsa.PrivateKey
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := storePrivateKey(tt.args.keystorePath, tt.args.finalPrivateKey); (err != nil) != tt.wantErr {
-				t.Errorf("storePrivateKey() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("GenFinalKeyPair() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -333,6 +293,78 @@ func Test_oidFromNamedCurve(t *testing.T) {
 			}
 			if got1 != tt.want1 {
 				t.Errorf("oidFromNamedCurve() got1 = %v, want %v", got1, tt.want1)
+			}
+		})
+	}
+}
+
+func TestGenSerial(t *testing.T) {
+	type args struct {
+		za []byte
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GenSerial(tt.args.za); got != tt.want {
+				t.Errorf("GenSerial() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateKey(t *testing.T) {
+	type args struct {
+		dA   []byte
+		P1   ecdsa.PublicKey
+		Pa   []byte
+		ID   string
+		OU   string
+		Role string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := ValidateKey(tt.args.dA, tt.args.P1, tt.args.Pa, tt.args.ID, tt.args.OU, tt.args.Role); (err != nil) != tt.wantErr {
+				t.Errorf("ValidateKey() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestPrivateKeyToDER(t *testing.T) {
+	type args struct {
+		d []byte
+		c elliptic.Curve
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    []byte
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := PrivateKeyToDER(tt.args.d, tt.args.c)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("PrivateKeyToDER() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("PrivateKeyToDER() = %v, want %v", got, tt.want)
 			}
 		})
 	}

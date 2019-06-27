@@ -15,7 +15,6 @@ import (
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
@@ -307,31 +306,6 @@ func GenFinalKeyPair(ID, OU, Role string, ClientPrivateKey *ecdsa.PrivateKey, Pa
 	return d.Bytes(), nil
 }
 
-func storePrivateKey(keystorePath string, finalPrivateKey *ecdsa.PrivateKey) error {
-
-	//get ski
-	finalPrivateKey.PublicKey.X, finalPrivateKey.PublicKey.Y = finalPrivateKey.Curve.ScalarBaseMult(finalPrivateKey.D.Bytes())
-	raw := elliptic.Marshal(finalPrivateKey.Curve, finalPrivateKey.X, finalPrivateKey.Y)
-	hash := sha256.New()
-	hash.Write(raw)
-	hash.Sum(nil)
-	ski := hex.EncodeToString(hash.Sum(nil))
-
-	//get PEM
-	rawKey, err := PrivateKeyToPEM(finalPrivateKey)
-	if err != nil {
-		fmt.Errorf("Failed converting private key to PEM :[%s]", err)
-		return err
-	}
-
-	fileName := filepath.Join(keystorePath, ski+"_sk")
-	err = ioutil.WriteFile(fileName, rawKey, 0600)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func PrivateKeyToPEM(k *ecdsa.PrivateKey) ([]byte, error) {
 	// get the oid for the curve
 	oidNamedCurve, ok := oidFromNamedCurve(k.Curve)
@@ -388,31 +362,6 @@ func oidFromNamedCurve(curve elliptic.Curve) (asn1.ObjectIdentifier, bool) {
 		return oidNamedCurveP521, true
 	}
 	return nil, false
-}
-
-func LoadCLPrivateKey(KGCPath string, ski []byte) (*ecdsa.PrivateKey, error) {
-
-	alias := hex.EncodeToString(ski)
-	path := filepath.Join(KGCPath, alias+"_sk")
-	raw, err := ioutil.ReadFile(path)
-	if err != nil {
-		fmt.Errorf("Failed loading private key [%s]: [%s].", alias, err.Error())
-		return nil, err
-	}
-	block, _ := pem.Decode(raw)
-	if block == nil {
-		return nil, fmt.Errorf("Failed decoding PEM. Block must be different from nil. [% x]", raw)
-	}
-	if priv, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
-		switch priv.(type) {
-		case *ecdsa.PrivateKey:
-			return priv.(*ecdsa.PrivateKey), err
-		default:
-			return nil, errors.New("Found unknown private key type in PKCS#8 wrapping")
-		}
-	}
-
-	return nil, errors.New("Invalid key type. KGCPath must contain an ecdsa.Private    Key")
 }
 
 func GenSerial(za []byte) string {

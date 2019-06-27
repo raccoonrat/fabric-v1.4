@@ -69,26 +69,6 @@ func NewKGC(baseDir, org, name string) (*KGC, error) {
 		RawPub:       raw,
 		Organization: org,
 	}
-	/*
-		bpriv, err := csp.KGCGeneratePrivateKey(baseDir)
-		response = err
-		if err == nil {
-			PubKey, raw, err := csp.KGCGetECPublicKey(bpriv, name, baseDir)
-			response = err
-			if err == nil {
-				priv, err := csp.LoadCLPrivateKey(baseDir, bpriv.SKI())
-				if err == nil {
-					kgc = &KGC{
-						Name:         name,
-						MasterKey:    priv,
-						MasterPub:    PubKey,
-						RawPub:       raw,
-						Organization: org,
-					}
-				}
-			}
-		}
-	*/
 	return kgc, response
 }
 
