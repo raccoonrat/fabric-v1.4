@@ -328,7 +328,7 @@ func extendPeerOrg(orgSpec OrgSpec) {
 	// copy the adminconfig to each of the org's peer's MSP adminconfigs
 	for _, spec := range orgSpec.Specs {
 		err := copyAdminCert(usersDir,
-			filepath.Join(peersDir, spec.CommonName, "msp", "adminconfigs"), adminUser.CommonName)
+			filepath.Join(peersDir, spec.CommonName, "msp", "CLID"), adminUser.CommonName)
 		if err != nil {
 			fmt.Printf("Error copying admin cert for org %s peer %s:\n%v\n",
 				orgName, spec.CommonName, err)
@@ -595,7 +595,7 @@ func generatePeerOrg(baseDir string, orgSpec OrgSpec) {
 
 func copyAdminCert(usersDir, adminCertsDir, adminUserName string) error {
 	IDConfig := &idconfig.IdConfig{}
-	err := IDConfig.Load(filepath.Join(adminCertsDir, "adminconfig"))
+	err := IDConfig.Load(filepath.Join(adminCertsDir, "AdminConfig"))
 	if err != nil {
 		return err
 	}
@@ -603,12 +603,12 @@ func copyAdminCert(usersDir, adminCertsDir, adminUserName string) error {
 		return nil
 	}
 	// delete the contents of admincerts
-	err = os.Remove(filepath.Join(adminCertsDir, "adminconfig"))
+	err = os.Remove(filepath.Join(adminCertsDir, "AdminConfig"))
 	if err != nil {
 		return err
 	}
 	err = copyFile(filepath.Join(usersDir, adminUserName, "msp", "CLID",
-		"adminconfig"), filepath.Join(adminCertsDir, "adminconfig"))
+		"AdminConfig"), filepath.Join(adminCertsDir, "AdminConfig"))
 	if err != nil {
 		return err
 	}

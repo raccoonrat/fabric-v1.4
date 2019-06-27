@@ -94,9 +94,9 @@ func NewKGC(baseDir, org, name string) (*KGC, error) {
 
 // KGCGenPartialKey creates partial pk and sk based on a built-in template
 // and saves it in baseDir/name
-func (kgc *KGC) KGCGenPartialKey(ID string, XA *ecdsa.PublicKey) ([]byte, []byte, error) {
+func (kgc *KGC) KGCGenPartialKey(ID, role string, XA *ecdsa.PublicKey) ([]byte, []byte, error) {
 
-	pa, za, err := KGCGenPartialKeyInternal(ID, XA, kgc.MasterKey)
+	pa, za, err := KGCGenPartialKeyInternal(ID, kgc.Organization, role, XA, kgc.MasterKey)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -104,7 +104,7 @@ func (kgc *KGC) KGCGenPartialKey(ID string, XA *ecdsa.PublicKey) ([]byte, []byte
 	return pa, za, nil
 }
 
-func KGCGenPartialKeyInternal(ID string, XA *ecdsa.PublicKey, s *ecdsa.PrivateKey) ([]byte, []byte, error) {
+func KGCGenPartialKeyInternal(ID, OU, Role string, XA *ecdsa.PublicKey, s *ecdsa.PrivateKey) ([]byte, []byte, error) {
 
 	var buffer bytes.Buffer
 
@@ -140,6 +140,8 @@ func KGCGenPartialKeyInternal(ID string, XA *ecdsa.PublicKey, s *ecdsa.PrivateKe
 	//e = hash(ID||PA)
 	buffer.Write([]byte(ID))
 	buffer.Write(PABytes)
+	buffer.Write([]byte(OU))
+	buffer.Write([]byte(Role))
 	e := sha256.Sum256(buffer.Bytes())
 
 	//e0=e[0:15], e1=e[16:31]

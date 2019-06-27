@@ -201,6 +201,14 @@ func (id *clidentity) Verify(msg []byte, sig []byte) error {
 	var buffer bytes.Buffer
 	buffer.Write([]byte(id.nameID))
 	buffer.Write(id.PA)
+	buffer.Write([]byte(id.OU.OrganizationalUnitIdentifier))
+	buffer.Write([]byte((id.Role.Role.String())))
+	mspclIdentityLogger.Debugf("IBPCLA Verify: OU = %s", id.OU.OrganizationalUnitIdentifier)
+	mspclIdentityLogger.Debugf("IBPCLA Verify: Role = %s", id.Role.Role.String())
+	KB, err := id.msp.rootPubs[0].Bytes()
+	mspclIdentityLogger.Debugf("IBPCLA Verify: KGCPub = %02X", KB)
+	mspclIdentityLogger.Debugf("IBPCLA Verify: ID = %s", id.nameID)
+	mspclIdentityLogger.Debugf("IBPCLA Verify: msp name = %s", id.msp.name)
 	HID, err := id.msp.csp.Hash(buffer.Bytes(), hashOptID)
 	if err != nil {
 		return errors.WithMessage(err, "failed computing HID")

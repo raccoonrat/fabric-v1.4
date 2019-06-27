@@ -234,7 +234,7 @@ func GetLocalMspConfig(dir string, bccspConfig *factory.FactoryOpts, ID string) 
 }
 
 func GetLocalCLMspConfig(dir string, bccspConfig *factory.FactoryOpts, ID string) (*msp.MSPConfig, error) {
-	IDconfigFile := filepath.Join(dir, CLID, "IDconfig")
+	IDconfigFile := filepath.Join(dir, CLID, "IDConfig")
 	/*
 		bccspConfig = SetupBCCSPKeystoreConfig(bccspConfig, keystoreDir)
 
@@ -481,7 +481,7 @@ const (
 
 func GetCLMspConfig(dir string, ID string, sigid *msp.CLMSPSignerConfig) (*msp.MSPConfig, error) {
 	KGCPubDir := filepath.Join(dir, CLKGCPubs)
-	adminconfigFile := filepath.Join(dir, CLID, "adminconfig")
+	adminconfigFile := filepath.Join(dir, CLID, "AdminConfig")
 	intermediatecertsDir := filepath.Join(dir, intermediatecerts)
 	crlsDir := filepath.Join(dir, crlsfolder)
 	//configFile := filepath.Join(dir, clconfigfilename)

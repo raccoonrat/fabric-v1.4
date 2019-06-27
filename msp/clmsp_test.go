@@ -693,7 +693,7 @@ func TestCLOUPolicyPrincipal(t *testing.T) {
 	id, err := localMspCL.GetDefaultSigningIdentity()
 	assert.NoError(t, err)
 
-	cid, err := localMspCL.(*clmsp).getPAIdentifier(id.GetPublicVersion())
+	cid, err := localMspCL.(*clmsp).rootPubs[0].Bytes()
 	assert.NoError(t, err)
 
 	ou := &msp.OrganizationUnit{
@@ -730,11 +730,11 @@ func TestCLOUPolicyPrincipalBadMSPID(t *testing.T) {
 	id, err := localMspCL.GetDefaultSigningIdentity()
 	assert.NoError(t, err)
 
-	cid, err := localMspCL.(*clmsp).getPAIdentifier(id.GetPublicVersion())
+	cid, err := localMspCL.(*clmsp).rootPubs[0].Bytes()
 	assert.NoError(t, err)
 
 	ou := &msp.OrganizationUnit{
-		OrganizationalUnitIdentifier: "COP",
+		OrganizationalUnitIdentifier: "org1.example.com",
 		MspIdentifier:                "SampleOrgbarfbarf",
 		CertifiersIdentifier:         cid,
 	}
@@ -755,7 +755,7 @@ func TestCLOUPolicyPrincipalBadPath(t *testing.T) {
 	assert.NoError(t, err)
 
 	ou := &msp.OrganizationUnit{
-		OrganizationalUnitIdentifier: "COP",
+		OrganizationalUnitIdentifier: "org1.example.com",
 		MspIdentifier:                "peer0.org1.example.com",
 		CertifiersIdentifier:         nil,
 	}
@@ -771,7 +771,7 @@ func TestCLOUPolicyPrincipalBadPath(t *testing.T) {
 	assert.Error(t, err)
 
 	ou = &msp.OrganizationUnit{
-		OrganizationalUnitIdentifier: "COP",
+		OrganizationalUnitIdentifier: "org1.example.com",
 		MspIdentifier:                "peer0.org1.example.com",
 		CertifiersIdentifier:         []byte{0, 1, 2, 3, 4},
 	}
@@ -861,27 +861,6 @@ func TestCLAdminPolicyPrincipal(t *testing.T) {
 	err = id.SatisfiesPrincipal(principal)
 	assert.NoError(t, err)
 }
-
-/*
-// Combine one or more MSPPrincipals into a MSPPrincipal of type
-// MSPPrincipal_COMBINED.
-func createCombinedPrincipal(principals ...*msp.MSPPrincipal) (*msp.MSPPrincipal, error) {
-	if len(principals) == 0 {
-		return nil, errors.New("no principals in CombinedPrincipal")
-	}
-	var principalsArray []*msp.MSPPrincipal
-	for _, principal := range principals {
-		principalsArray = append(principalsArray, principal)
-	}
-	combinedPrincipal := &msp.CombinedPrincipal{Principals: principalsArray}
-	combinedPrincipalBytes, err := proto.Marshal(combinedPrincipal)
-	if err != nil {
-		return nil, err
-	}
-	principalsCombined := &msp.MSPPrincipal{PrincipalClassification: msp.MSPPrincipal_COMBINED, Principal: combinedPrincipalBytes}
-	return principalsCombined, nil
-}
-*/
 
 func TestCLMultilevelAdminAndMemberPolicyPrincipal(t *testing.T) {
 	id, err := localMspCL.GetDefaultSigningIdentity()

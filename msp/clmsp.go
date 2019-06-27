@@ -243,10 +243,15 @@ func (msp *clmsp) getSigningIdentityFromConf(sidInfo *m.CLMSPSignerConfig) (Sign
 		MspIdentifier: msp.name,
 		Role:          m.MSPRole_MEMBER,
 	}
-	//m.MSPRole_MEMBER,
-	if strings.ToUpper(sidInfo.Role) == m.MSPRole_ADMIN.String() {
+	switch strings.ToUpper(sidInfo.Role) {
+	case m.MSPRole_ADMIN.String():
 		role.Role = m.MSPRole_ADMIN
+	case m.MSPRole_CLIENT.String():
+		role.Role = m.MSPRole_CLIENT
+	case m.MSPRole_PEER.String():
+		role.Role = m.MSPRole_PEER
 	}
+
 	return newCLSigningIdentity(sidInfo.PA, sidInfo.ID, ou, role, peerSigner, msp)
 }
 
@@ -542,7 +547,7 @@ func (msp *clmsp) satisfiesPrincipalValidated(id Identity, principal *m.MSPPrinc
 		if OU.OrganizationalUnitIdentifier != id.(*clidentity).OU.OrganizationalUnitIdentifier {
 			return errors.Errorf("user is not part of the desired organizationalunit")
 		}
-		if !bytes.Equal(OU.CertifiersIdentifier, OU.CertifiersIdentifier) {
+		if !bytes.Equal(OU.CertifiersIdentifier, id.(*clidentity).OU.CertifiersIdentifier) {
 			return errors.Errorf("OU CertifiersIdentifier not match")
 		}
 

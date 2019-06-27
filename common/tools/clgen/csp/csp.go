@@ -283,7 +283,7 @@ func KGCGetECPublicKey(priv bccsp.Key, name, keystorePath string) (*ecdsa.Public
 	return ecPubKey.(*ecdsa.PublicKey), pubKeyBytes, nil
 }
 
-func GenFinalKeyPair(ID string, ClientPrivateKey *ecdsa.PrivateKey, PartialPublicKey []byte, PartialPrivateKey []byte) ([]byte, error) {
+func GenFinalKeyPair(ID, OU, Role string, ClientPrivateKey *ecdsa.PrivateKey, PartialPublicKey []byte, PartialPrivateKey []byte) ([]byte, error) {
 
 	var buffer bytes.Buffer
 	n := ClientPrivateKey.Params().N
@@ -291,6 +291,8 @@ func GenFinalKeyPair(ID string, ClientPrivateKey *ecdsa.PrivateKey, PartialPubli
 	//e=h(ID||PA)
 	buffer.Write([]byte(ID))
 	buffer.Write(PartialPublicKey)
+	buffer.Write([]byte(OU))
+	buffer.Write([]byte(Role))
 	e := sha256.Sum256(buffer.Bytes())
 	e0 := new(big.Int).SetBytes(e[0:15])
 
@@ -419,7 +421,7 @@ func GenSerial(za []byte) string {
 	return util.B64Encode(hash.Sum(nil))
 }
 
-func ValidateKey(dA []byte, P1 ecdsa.PublicKey, Pa []byte, ID string) error {
+func ValidateKey(dA []byte, P1 ecdsa.PublicKey, Pa []byte, ID, OU, Role string) error {
 	c := elliptic.P256()
 	n := elliptic.P256().Params().N
 
@@ -436,6 +438,8 @@ func ValidateKey(dA []byte, P1 ecdsa.PublicKey, Pa []byte, ID string) error {
 	var buffer bytes.Buffer
 	buffer.Write([]byte(ID))
 	buffer.Write(Pa)
+	buffer.Write([]byte(OU))
+	buffer.Write([]byte(Role))
 	e := sha256.Sum256(buffer.Bytes())
 	e0 := new(big.Int).SetBytes(e[0:15])
 	e1 := new(big.Int).SetBytes(e[16:31])

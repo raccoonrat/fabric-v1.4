@@ -60,6 +60,19 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 		return err
 	}
 
+	var role string
+	switch nodeType {
+	case PEER:
+		role = "PEER"
+	case ORDERER:
+		role = "CLIENT"
+	case CLIENT:
+		if strings.Split(name, "@")[0] == "Admin" {
+			role = "ADMIN"
+		} else {
+			role = "MEMBER"
+		}
+	}
 	/*
 		Create the MSP identity artifacts
 	*/
@@ -71,18 +84,18 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 	}
 
 	//kgc generate partial keys
-	pa, za, err := signKGC.KGCGenPartialKey(name, &priv.PublicKey)
+	pa, za, err := signKGC.KGCGenPartialKey(name, role, &priv.PublicKey)
 	if err != nil {
 		return err
 	}
 
 	//client generate final key
-	sk, err := csp.GenFinalKeyPair(name, priv, pa, za)
+	sk, err := csp.GenFinalKeyPair(name, signKGC.Organization, role, priv, pa, za)
 	if err != nil {
 		return err
 	}
 
-	err = csp.ValidateKey(sk, signKGC.MasterKey.PublicKey, pa, name)
+	err = csp.ValidateKey(sk, signKGC.MasterKey.PublicKey, pa, name, signKGC.Organization, role)
 	if err != nil {
 		return err
 	}
@@ -96,19 +109,6 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 		return err
 	}
 
-	var role string
-	switch nodeType {
-	case PEER:
-		role = "peer"
-	case ORDERER:
-		role = "client"
-	case CLIENT:
-		if strings.Split(name, "@")[0] == "Admin" {
-			role = "admin"
-		} else {
-			role = "member"
-		}
-	}
 	IDConfig := &idconfig.IdConfig{
 		Pk:                           pa,
 		Sk:                           skDER,
@@ -117,7 +117,7 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 		OrganizationalUnitIdentifier: signKGC.Organization,
 		Role:                         role,
 	}
-	err = IDConfig.Store(filepath.Join(mspDir, "CLID", "IDconfig"))
+	err = IDConfig.Store(filepath.Join(mspDir, "CLID", "IDConfig"))
 	if err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func GenerateLocalMSP(baseDir, name string, sans []string, signKGC *kgc.KGC,
 		OrganizationalUnitIdentifier: signKGC.Organization,
 		Role:                         role,
 	}
-	err = adminConfig.Store(filepath.Join(mspDir, "CLID", "adminconfig"))
+	err = adminConfig.Store(filepath.Join(mspDir, "CLID", "AdminConfig"))
 	if err != nil {
 		return err
 	}
@@ -240,7 +240,7 @@ func GenerateVerifyingMSP(baseDir string, signKGC *kgc.KGC, tlsCA *ca.CA, nodeOU
 		return err
 	}
 	tempID := "TempAdmin"
-	tempPA, _, err := signKGC.KGCGenPartialKey(tempID, &pri.PublicKey)
+	tempPA, _, err := signKGC.KGCGenPartialKey(tempID, "ADMIN", &pri.PublicKey)
 	if err != nil {
 		return err
 	}
@@ -248,7 +248,7 @@ func GenerateVerifyingMSP(baseDir string, signKGC *kgc.KGC, tlsCA *ca.CA, nodeOU
 		Pk:           tempPA,
 		EnrollmentID: tempID,
 	}
-	err = adminConfig.Store(filepath.Join(baseDir, "CLID", "adminconfig"))
+	err = adminConfig.Store(filepath.Join(baseDir, "CLID", "AdminConfig"))
 	if err != nil {
 		return err
 	}
