@@ -320,7 +320,7 @@ func (msp *clmsp) GetDefaultSigningIdentity() (SigningIdentity, error) {
 	mspLogger.Debugf("Obtaining default IBPCLA signing identity")
 
 	if msp.signer == nil {
-		return nil, errors.New("this MSP does not possess a valid default signing identity")
+		return nil, errors.New("this MSP does not possess a valid default cl signing identity")
 	}
 
 	return msp.signer, nil

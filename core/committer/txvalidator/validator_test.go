@@ -32,6 +32,7 @@ import (
 	"github.com/hyperledger/fabric/core/handlers/validation/builtin"
 	"github.com/hyperledger/fabric/core/ledger"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/rwsetutil"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/version"
 	"github.com/hyperledger/fabric/core/ledger/ledgermgmt"
 	lutils "github.com/hyperledger/fabric/core/ledger/util"
 	mocktxvalidator "github.com/hyperledger/fabric/core/mocks/txvalidator"
@@ -1662,6 +1663,11 @@ func (exec *mockQueryExecutor) GetState(namespace string, key string) ([]byte, e
 	return args.Get(0).([]byte), args.Error(1)
 }
 
+func (exec *mockQueryExecutor) GetStateVersion(namespace string, key string) (*version.Height, error) {
+	args := exec.Called(namespace, key)
+	return args.Get(0).(*version.Height), args.Error(1)
+}
+
 func (exec *mockQueryExecutor) GetStateMultipleKeys(namespace string, keys []string) ([][]byte, error) {
 	args := exec.Called(namespace, keys)
 	return args.Get(0).([][]byte), args.Error(1)
@@ -1690,6 +1696,11 @@ func (exec *mockQueryExecutor) ExecuteQueryWithMetadata(namespace, query string,
 func (exec *mockQueryExecutor) GetPrivateData(namespace, collection, key string) ([]byte, error) {
 	args := exec.Called(namespace, collection, key)
 	return args.Get(0).([]byte), args.Error(1)
+}
+
+func (exec *mockQueryExecutor) GetPrivateDataVersion(namespace, collection, key string) (*version.Height, error) {
+	args := exec.Called(namespace, collection, key)
+	return args.Get(0).(*version.Height), args.Error(1)
 }
 
 func (exec *mockQueryExecutor) GetPrivateDataMetadataByHash(namespace, collection string, keyhash []byte) (map[string][]byte, error) {

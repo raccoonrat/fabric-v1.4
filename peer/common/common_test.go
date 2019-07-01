@@ -68,12 +68,16 @@ func TestInitCryptoMissingDir(t *testing.T) {
 func TestInitCrypto(t *testing.T) {
 	mspConfigPath, err := configtest.GetDevMspDir()
 	localMspId := "SampleOrg"
-	err = common.InitCrypto(mspConfigPath, localMspId, msp.ProviderTypeToString(msp.FABRIC))
+	var mspType = viper.GetString("peer.localMspType")
+	if mspType == "" {
+		mspType = msp.ProviderTypeToString(msp.FABRIC)
+	}
+	err = common.InitCrypto(mspConfigPath, localMspId, mspType)
 	assert.NoError(t, err, "Unexpected error [%s] calling InitCrypto()", err)
-	err = common.InitCrypto("/etc/foobaz", localMspId, msp.ProviderTypeToString(msp.FABRIC))
+	err = common.InitCrypto("/etc/foobaz", localMspId, mspType)
 	assert.Error(t, err, fmt.Sprintf("Expected error [%s] calling InitCrypto()", err))
 	localMspId = ""
-	err = common.InitCrypto(mspConfigPath, localMspId, msp.ProviderTypeToString(msp.FABRIC))
+	err = common.InitCrypto(mspConfigPath, localMspId, mspType)
 	assert.Error(t, err, fmt.Sprintf("Expected error [%s] calling InitCrypto()", err))
 }
 
@@ -178,7 +182,6 @@ func TestInitCmd(t *testing.T) {
 	cleanup := configtest.SetDevFabricConfigPath(t)
 	defer cleanup()
 	defer viper.Reset()
-
 	// test that InitCmd doesn't remove existing loggers from the logger levels map
 	flogging.MustGetLogger("test")
 	flogging.ActivateSpec("test=error")

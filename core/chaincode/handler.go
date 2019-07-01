@@ -187,7 +187,7 @@ func (h *Handler) handleMessage(msg *pb.ChaincodeMessage) error {
 		return nil
 	}
 
-	//fmt.Println("------------------h.state------------------",h.state)
+	//fmt.Println("------------------h.state------------------", h.state)
 	switch h.state {
 	case Created:
 		return h.handleMessageCreatedState(msg)
@@ -1347,11 +1347,10 @@ func (h *Handler) HandleInvokeChaincode(msg *pb.ChaincodeMessage, txContext *Tra
 	chaincodeLogger.Debugf("[%s] C-call-C", shorttxid(msg.Txid))
 	chaincodeSpec := &pb.ChaincodeSpec{}
 	err := proto.Unmarshal(msg.Payload, chaincodeSpec)
-	fmt.Println("********************HandleInvokeChaincode***************************", chaincodeSpec.ChaincodeId.Name)
-
 	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal failed")
 	}
+	fmt.Println("********************HandleInvokeChaincode***************************", chaincodeSpec.ChaincodeId.Name)
 
 	// Get the chaincodeID to invoke. The chaincodeID to be called may
 	// contain composite info like "chaincode-name:version/channel-name".

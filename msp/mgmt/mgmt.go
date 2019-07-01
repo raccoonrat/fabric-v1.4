@@ -41,7 +41,7 @@ func LoadLocalMsp(dir string, bccspConfig *factory.FactoryOpts, mspID string) er
 
 	err := config.InitViper(nil, "core")
 	if err != nil {
-		return nil
+		return err
 	}
 
 	err = viper.ReadInConfig() // Find and read the config file
@@ -161,6 +161,9 @@ func GetLocalMSP() msp.MSP {
 
 func loadLocaMSP() msp.MSP {
 
+	_ = config.InitViper(nil, "core")
+	_ = viper.ReadInConfig() // Find and read the config file
+
 	// determine the type of MSP (by default, we'll use bccspMSP)
 	mspType := viper.GetString("peer.localMspType")
 	if mspType == "" {
@@ -176,7 +179,6 @@ func loadLocaMSP() msp.MSP {
 	if !found {
 		mspLogger.Panicf("msp type " + mspType + " unknown")
 	}
-
 	mspInst, err := msp.New(newOpts)
 	if err != nil {
 		mspLogger.Fatalf("Failed to initialize local MSP, received err %+v", err)
