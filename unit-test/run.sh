@@ -137,12 +137,12 @@ main() {
         echo "mode: set" > profile.cov
         run_tests_with_coverage "${packages[@]}"
         GO_TAGS="${GO_TAGS} pluginsenabled" run_tests_with_coverage "${plugin_packages[@]}"
-        GO_TAGS="${GO_TAGS} pkcs11" run_tests_with_coverage "${pkcs11_packages[@]}"
+        #GO_TAGS="${GO_TAGS} pkcs11" run_tests_with_coverage "${pkcs11_packages[@]}"
         gocov convert profile.cov | gocov-xml > report.xml
     else
         run_tests "${packages[@]}"
         GO_TAGS="${GO_TAGS} pluginsenabled" run_tests "${plugin_packages[@]}"
-        GO_TAGS="${GO_TAGS} pkcs11" run_tests "${pkcs11_packages[@]}"
+        #GO_TAGS="${GO_TAGS} pkcs11" run_tests "${pkcs11_packages[@]}"
     fi
 }
 

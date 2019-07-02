@@ -281,6 +281,7 @@ $(BUILD_DIR)/image/buildenv/payload:   $(BUILD_DIR)/gotools.tar.bz2 \
 
 $(BUILD_DIR)/image/%/payload:
 	mkdir -p $@
+	#go install ./vendor/github.com/golang/protobuf/protoc-gen-go/
 	#cp $(GOPATH)/bin/protoc-gen-go .build/docker/gotools/bin/
 	cp $^ $@
 
