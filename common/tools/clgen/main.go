@@ -509,7 +509,6 @@ func renderOrgSpec(orgSpec *OrgSpec, prefix string) error {
 		return err
 	}
 
-	//to do
 	// Process the KGC node-spec in the same manner
 	if len(orgSpec.KGC.Hostname) == 0 {
 		orgSpec.KGC.Hostname = "kgc"

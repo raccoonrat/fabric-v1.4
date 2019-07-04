@@ -117,7 +117,7 @@ func LoadMSPSetupForTesting() error {
 	if err != nil {
 		return err
 	}
-	conf, err := msp.GetLocalMspConfig(dir, nil, "SampleOrg")
+	conf, err := msp.GetLocalMspConfigWithType(dir, nil, "SampleOrg", mspType)
 	if err != nil {
 		return err
 	}

@@ -28,6 +28,8 @@ Organizations:
 
         # MSPDir is the filesystem path which contains the MSP configuration.
         MSPDir: msp
+
+        # MSPType specifies the type of MSP.
         MSPType: bccsp
 
         # Policies defines the set of policies at this level of the config tree

@@ -72,10 +72,10 @@ func NewKGC(baseDir, org, name string) (*KGC, error) {
 	return kgc, response
 }
 
-// KGCGenPartialKey creates partial pk and sk based on a built-in template
-// and saves it in baseDir/name
+// KGCGenPartialKey creates partial pk(PA) and sk(za) based on a built-in template
 func (kgc *KGC) KGCGenPartialKey(ID, role string, XA *ecdsa.PublicKey) ([]byte, []byte, error) {
 
+	//to do: specify hash algorithm, currently hard coded to sha256
 	pa, za, err := KGCGenPartialKeyInternal(ID, kgc.Organization, role, XA, kgc.MasterKey)
 	if err != nil {
 		return nil, nil, err

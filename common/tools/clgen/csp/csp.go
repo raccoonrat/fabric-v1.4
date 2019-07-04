@@ -282,6 +282,7 @@ func KGCGetECPublicKey(priv bccsp.Key, name, keystorePath string) (*ecdsa.Public
 	return ecPubKey.(*ecdsa.PublicKey), pubKeyBytes, nil
 }
 
+//GenFinalKeyPair generate client final private key used to signing
 func GenFinalKeyPair(ID, OU, Role string, ClientPrivateKey *ecdsa.PrivateKey, PartialPublicKey []byte, PartialPrivateKey []byte) ([]byte, error) {
 
 	var buffer bytes.Buffer
@@ -454,12 +455,4 @@ func PrivateKeyToDER(d []byte, c elliptic.Curve) ([]byte, error) {
 		return nil, fmt.Errorf("error marshaling EC key to asn1 [%s]", err)
 	}
 	return pkcs8Bytes, nil
-	/*
-		return pem.EncodeToMemory(
-			&pem.Block{
-				Type:  "PRIVATE KEY",
-				Bytes: pkcs8Bytes,
-			},
-		), nil
-	*/
 }

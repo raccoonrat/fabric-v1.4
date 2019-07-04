@@ -7,12 +7,14 @@ SPDX-License-Identifier: Apache-2.0
 package mgmt
 
 import (
+	"os"
 	"reflect"
 	"sync"
 
 	"github.com/hyperledger/fabric/bccsp/factory"
 	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/core/config"
+	"github.com/hyperledger/fabric/core/config/configtest"
 	"github.com/hyperledger/fabric/msp"
 	"github.com/hyperledger/fabric/msp/cache"
 	"github.com/pkg/errors"
@@ -37,6 +39,11 @@ func LoadLocalMspWithType(dir string, bccspConfig *factory.FactoryOpts, mspID, m
 func LoadLocalMsp(dir string, bccspConfig *factory.FactoryOpts, mspID string) error {
 	if mspID == "" {
 		return errors.New("the local MSP must have an ID")
+	}
+
+	if os.Getenv("FABRIC_CFG_PATH") == "" {
+		cfgDir, _ := configtest.GetDevConfigDir()
+		config.AddConfigPath(nil, cfgDir)
 	}
 	err := config.InitViper(nil, "core")
 	if err != nil {
@@ -155,9 +162,6 @@ func GetLocalMSP() msp.MSP {
 }
 
 func loadLocaMSP() msp.MSP {
-
-	//_ = config.InitViper(nil, "core")
-	//_ = viper.ReadInConfig() // Find and read the config file
 
 	// determine the type of MSP (by default, we'll use bccspMSP)
 	mspType := viper.GetString("peer.localMspType")
