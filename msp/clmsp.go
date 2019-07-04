@@ -492,7 +492,6 @@ func (msp *clmsp) satisfiesPrincipalValidated(id Identity, principal *m.MSPPrinc
 			mspLogger.Debugf("Checking if identity satisfies ADMIN role for %s", msp.name)
 			// in the case of admin, we check that the
 			// id is exactly one of our admins
-			//if id.(*clidentity).Role.Role != m.MSPRole_ADMIN {
 			for _, adminidentity := range msp.admins {
 				if adminidentity.Role.Role == m.MSPRole_ADMIN {
 					// we do not need to check whether the admin is a valid identity
@@ -599,45 +598,6 @@ func (msp *clmsp) satisfiesPrincipalValidated(id Identity, principal *m.MSPPrinc
 	}
 }
 
-/*
-// getCertificationChain returns the certification chain of the passed identity within this msp
-func (msp *clmsp) getCertificationChain(id Identity) ([]*x509.Certificate, error) {
-	mspLogger.Debugf("MSP %s getting certification chain", msp.name)
-
-	switch id := id.(type) {
-	// If this identity is of this specific type,
-	// this is how I can validate it given the
-	// root of trust this MSP has
-	case *identity:
-		return msp.getCertificationChainForBCCSPIdentity(id)
-	default:
-		return nil, errors.New("identity type not recognized")
-	}
-}
-*/
-
-/*
-// getCertificationChainForBCCSPIdentity returns the certification chain of the passed bccsp identity within this msp
-func (msp *clmsp) getCertificationChainForBCCSPIdentity(id *identity) ([]*x509.Certificate, error) {
-	if id == nil {
-		return nil, errors.New("Invalid bccsp identity. Must be different from nil.")
-	}
-
-	// we expect to have a valid VerifyOptions instance
-	if msp.opts == nil {
-		return nil, errors.New("Invalid msp instance")
-	}
-
-	// CAs cannot be directly used as identities..
-	if id.cert.IsCA {
-		return nil, errors.New("An X509 certificate with Basic Constraint: " +
-			"Certificate Authority equals true cannot be used as an identity")
-	}
-
-	return msp.getValidationChain(id.cert, false)
-}
-*/
-
 func (msp *clmsp) getUniqueValidationChain(cert *x509.Certificate, opts x509.VerifyOptions) ([]*x509.Certificate, error) {
 	// ask golang to validate the cert for us based on the options that we've built at setup time
 	//skip, because no root ca exits
@@ -662,31 +622,6 @@ func (msp *clmsp) getUniqueValidationChain(cert *x509.Certificate, opts x509.Ver
 	return validationChains[0], nil
 }
 
-/*
-func (msp *clmsp) getValidationChain(cert *x509.Certificate, isIntermediateChain bool) ([]*x509.Certificate, error) {
-	validationChain, err := msp.getUniqueValidationChain(cert, msp.getValidityOptsForCert(cert))
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed getting validation chain")
-	}
-
-	// we expect a chain of length at least 2
-	if len(validationChain) < 2 {
-		return nil, errors.Errorf("expected a chain of length at least 2, got %d", len(validationChain))
-	}
-
-	// check that the parent is a leaf of the certification tree
-	// if validating an intermediate chain, the first certificate will the parent
-	parentPosition := 1
-	if isIntermediateChain {
-		parentPosition = 0
-	}
-	if msp.certificationTreeInternalNodesMap[string(validationChain[parentPosition].Raw)] {
-		return nil, errors.Errorf("invalid validation chain. Parent certificate should be a leaf of the certification tree [%v]", cert.Raw)
-	}
-	return validationChain, nil
-}
-*/
-
 // getPAIdentifier returns the certification chain identifier of the passed identity within this msp.
 // The identifier is computes as the SHA256 of the concatenation of the certificates in the chain.
 func (msp *clmsp) getPAIdentifier(id Identity) ([]byte, error) {
@@ -697,56 +632,6 @@ func (msp *clmsp) getPAIdentifier(id Identity) ([]byte, error) {
 
 	cid, err := hex.DecodeString(scid)
 	return cid, err
-}
-
-/*
-func (msp *clmsp) getKGCIdentifierFromChain(chain []*x509.Certificate) ([]byte, error) {
-	// Hash the chain
-	// Use the hash of the identity's certificate as id in the IdentityIdentifier
-	hashOpt, err := bccsp.GetHashOpt(msp.cryptoConfig.IdentityIdentifierHashFunction)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed getting hash function options")
-	}
-
-	hf, err := msp.csp.GetHash(hashOpt)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed getting hash function when computing certification chain identifier")
-	}
-	for i := 0; i < len(chain); i++ {
-		hf.Write(chain[i].Raw)
-	}
-	return hf.Sum(nil), nil
-}
-*/
-
-// sanitizeCert ensures that x509 certificates signed using ECDSA
-// do have signatures in Low-S. If this is not the case, the certificate
-// is regenerated to have a Low-S signature.
-func (msp *clmsp) sanitizeCert(cert *x509.Certificate) (*x509.Certificate, error) {
-	if isECDSASignedCert(cert) {
-		// Lookup for a parent certificate to perform the sanitization
-		var parentCert *x509.Certificate
-		chain, err := msp.getUniqueValidationChain(cert, msp.getValidityOptsForCert(cert))
-		if err != nil {
-			return nil, err
-		}
-
-		// at this point, cert might be a root CA certificate
-		// or an intermediate CA certificate
-		if cert.IsCA && len(chain) == 1 {
-			// cert is a root CA certificate
-			parentCert = cert
-		} else {
-			parentCert = chain[1]
-		}
-
-		// Sanitize
-		cert, err = sanitizeECDSASignedCert(cert, parentCert)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return cert, nil
 }
 
 // IsWellFormed checks if the given identity can be deserialized into its provider-specific form.

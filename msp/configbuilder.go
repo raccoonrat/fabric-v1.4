@@ -474,17 +474,14 @@ func GetIdemixMspConfig(dir string, ID string) (*msp.MSPConfig, error) {
 }
 
 const (
-	CLKGCPubs        = "kgcpubs"
-	CLID             = "CLID"
-	clconfigfilename = "clconfig.yaml"
+	CLKGCPubs = "kgcpubs"
+	CLID      = "CLID"
 )
 
 func GetCLMspConfig(dir string, ID string, sigid *msp.CLMSPSignerConfig) (*msp.MSPConfig, error) {
 	KGCPubDir := filepath.Join(dir, CLKGCPubs)
 	adminconfigFile := filepath.Join(dir, CLID, "AdminConfig")
-	intermediatecertsDir := filepath.Join(dir, intermediatecerts)
 	crlsDir := filepath.Join(dir, crlsfolder)
-	//configFile := filepath.Join(dir, clconfigfilename)
 	tlscacertDir := filepath.Join(dir, tlscacerts)
 	tlsintermediatecertsDir := filepath.Join(dir, tlsintermediatecerts)
 
@@ -507,12 +504,14 @@ func GetCLMspConfig(dir string, ID string, sigid *msp.CLMSPSignerConfig) (*msp.M
 	adminPA := make([]*msp.CLMSPAdminConfig, 0)
 	adminPA = append(adminPA, CLAdminConfig)
 
-	//intermediatepubs, err := getPemMaterialFromDir(intermediatecertsDir)
-	if os.IsNotExist(err) {
-		mspLogger.Debugf("Intermediate certs folder not found at [%s]. Skipping. [%s]", intermediatecertsDir, err)
-	} else if err != nil {
-		return nil, errors.WithMessage(err, fmt.Sprintf("failed loading intermediate ca certs at [%s]", intermediatecertsDir))
-	}
+	/*
+		intermediatepubs, err := getPemMaterialFromDir(intermediatecertsDir)
+		if os.IsNotExist(err) {
+			mspLogger.Debugf("Intermediate certs folder not found at [%s]. Skipping. [%s]", intermediatecertsDir, err)
+		} else if err != nil {
+			return nil, errors.WithMessage(err, fmt.Sprintf("failed loading intermediate ca certs at [%s]", intermediatecertsDir))
+		}
+	*/
 
 	tlsCACerts, err := getPemMaterialFromDir(tlscacertDir)
 	tlsIntermediateCerts := [][]byte{}
@@ -537,84 +536,6 @@ func GetCLMspConfig(dir string, ID string, sigid *msp.CLMSPSignerConfig) (*msp.M
 	} else if err != nil {
 		return nil, errors.WithMessage(err, fmt.Sprintf("failed loading crls at [%s]", crlsDir))
 	}
-	/*
-		// Load configuration file
-		// if the configuration file is there then load it
-		// otherwise skip it
-		var ouis []*msp.FabricOUIdentifier
-		var nodeOUs *msp.FabricNodeOUs
-		_, err = os.Stat(configFile)
-		if err == nil {
-			// load the file, if there is a failure in loading it then
-			// return an error
-			raw, err := ioutil.ReadFile(configFile)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed loading configuration file at [%s]", configFile)
-			}
-
-			configuration := Configuration{}
-			err = yaml.Unmarshal(raw, &configuration)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed unmarshalling configuration file at [%s]", configFile)
-			}
-
-			// Prepare OrganizationalUnitIdentifiers
-			if len(configuration.OrganizationalUnitIdentifiers) > 0 {
-				for _, ouID := range configuration.OrganizationalUnitIdentifiers {
-					f := filepath.Join(dir, ouID.Certificate)
-					raw, err = readFile(f)
-					if err != nil {
-						return nil, errors.Wrapf(err, "failed loading OrganizationalUnit kgcpub at [%s]", f)
-					}
-
-					oui := &msp.FabricOUIdentifier{
-						Certificate:                  raw,
-						OrganizationalUnitIdentifier: ouID.OrganizationalUnitIdentifier,
-					}
-					ouis = append(ouis, oui)
-				}
-			}
-
-			// Prepare NodeOUs
-			if configuration.NodeOUs != nil && configuration.NodeOUs.Enable {
-				mspLogger.Debug("Loading NodeOUs")
-				if configuration.NodeOUs.ClientOUIdentifier == nil || len(configuration.NodeOUs.ClientOUIdentifier.OrganizationalUnitIdentifier) == 0 {
-					return nil, errors.New("Failed loading NodeOUs. ClientOU must be different from nil.")
-				}
-				if configuration.NodeOUs.PeerOUIdentifier == nil || len(configuration.NodeOUs.PeerOUIdentifier.OrganizationalUnitIdentifier) == 0 {
-					return nil, errors.New("Failed loading NodeOUs. PeerOU must be different from nil.")
-				}
-
-				nodeOUs = &msp.FabricNodeOUs{
-					Enable:             configuration.NodeOUs.Enable,
-					ClientOuIdentifier: &msp.FabricOUIdentifier{OrganizationalUnitIdentifier: configuration.NodeOUs.ClientOUIdentifier.OrganizationalUnitIdentifier},
-					PeerOuIdentifier:   &msp.FabricOUIdentifier{OrganizationalUnitIdentifier: configuration.NodeOUs.PeerOUIdentifier.OrganizationalUnitIdentifier},
-				}
-
-				// Read certificates, if defined
-
-				// ClientOU
-				f := filepath.Join(dir, configuration.NodeOUs.ClientOUIdentifier.Certificate)
-				raw, err = readFile(f)
-				if err != nil {
-					mspLogger.Infof("Failed loading ClientOU kgcpub at [%s]: [%s]", f, err)
-				} else {
-					nodeOUs.ClientOuIdentifier.Certificate = raw
-				}
-
-				// PeerOU
-				f = filepath.Join(dir, configuration.NodeOUs.PeerOUIdentifier.Certificate)
-				raw, err = readFile(f)
-				if err != nil {
-					mspLogger.Debugf("Failed loading PeerOU kgcpub at [%s]: [%s]", f, err)
-				} else {
-					nodeOUs.PeerOuIdentifier.Certificate = raw
-				}
-			}
-		} else {
-			mspLogger.Debugf("MSP configuration file not found at [%s]: [%s]", configFile, err)
-		}
-	*/
 
 	// Set FabricCryptoConfig
 	cryptoConfig := &msp.FabricCryptoConfig{

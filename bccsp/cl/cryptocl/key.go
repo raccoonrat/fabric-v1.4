@@ -1,3 +1,6 @@
+/*
+SPDX-License-Identifier: Apache-2.0
+*/
 package cryptocl
 
 import (
@@ -83,6 +86,7 @@ func (k signKey) PublicKey() (bccsp.Key, error) {
 	return &rootPublicKey{&k.privKey.PublicKey}, nil
 }
 
+// NewCecretKey returns a new signKey struct
 func NewSecretKey() *signKey {
 	return &signKey{}
 }

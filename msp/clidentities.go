@@ -1,6 +1,4 @@
 /*
-Copyright IBM Corp. All Rights Reserved.
-
 SPDX-License-Identifier: Apache-2.0
 */
 
@@ -112,40 +110,6 @@ func (id *clidentity) Validate() error {
 
 // GetOrganizationalUnits returns the OU for this instance
 func (id *clidentity) GetOrganizationalUnits() []*OUIdentifier {
-	//todo
-	/*
-		if id.msp.ouIdentifiers == nil {
-			mspIdentityLogger.Errorf("Failed to get OrganizationalUnitIdentifier in GetOrganizationalUnits")
-			return nil
-		}
-
-		res := []*OUIdentifier{}
-
-		for k, v := range id.msp.ouIdentifiers {
-			if v == nil {
-				mspIdentityLogger.Errorf("Failed to get OrganizationalUnitIdentifier in GetOrganizationalUnits")
-				return nil
-			}
-			res = append(res, &OUIdentifier{
-				CertifiersIdentifier:         v[0],
-				OrganizationalUnitIdentifier: k,
-			})
-
-			cid, err := id.msp.getPAIdentifier(id)
-			if err != nil {
-				mspIdentityLogger.Errorf("Failed to get PA Identifier")
-				return nil
-			}
-			res = append(res, &OUIdentifier{
-				CertifiersIdentifier:         cid,
-				OrganizationalUnitIdentifier: k,
-			})
-		}
-
-		if len(res) == 0 {
-			return nil
-		}
-	*/
 	return []*OUIdentifier{{id.OU.CertifiersIdentifier, id.OU.OrganizationalUnitIdentifier}}
 }
 
@@ -203,12 +167,6 @@ func (id *clidentity) Verify(msg []byte, sig []byte) error {
 	buffer.Write(id.PA)
 	buffer.Write([]byte(id.OU.OrganizationalUnitIdentifier))
 	buffer.Write([]byte((id.Role.Role.String())))
-	mspclIdentityLogger.Debugf("IBPCLA Verify: OU = %s", id.OU.OrganizationalUnitIdentifier)
-	mspclIdentityLogger.Debugf("IBPCLA Verify: Role = %s", id.Role.Role.String())
-	KB, err := id.msp.rootPubs[0].Bytes()
-	mspclIdentityLogger.Debugf("IBPCLA Verify: KGCPub = %02X", KB)
-	mspclIdentityLogger.Debugf("IBPCLA Verify: ID = %s", id.nameID)
-	mspclIdentityLogger.Debugf("IBPCLA Verify: msp name = %s", id.msp.name)
 	HID, err := id.msp.csp.Hash(buffer.Bytes(), hashOptID)
 	if err != nil {
 		return errors.WithMessage(err, "failed computing HID")
@@ -291,13 +249,6 @@ type clsigningidentity struct {
 
 func newCLSigningIdentity(PA []byte, ID string, ou *m.OrganizationUnit, role *m.MSPRole, signer crypto.Signer, msp *clmsp) (SigningIdentity, error) {
 	//mspclIdentityLogger.Infof("Creating cl signing identity instance for ID %s", id)
-	/*
-		block, _ := pem.Decode(PA)
-		if block == nil {
-			return nil, errors.New("invalid PA, failed decoding pem Bytes")
-
-		}
-	*/
 	mspId, err := newclIdentity(PA, msp, ID, ou, role)
 	if err != nil {
 		return nil, err
@@ -338,32 +289,7 @@ func (id *clsigningidentity) GetPublicVersion() Identity {
 }
 
 func (id *clidentity) validateIdentity() error {
-	// Check that the identity's OUs are compatible with those recognized by this MSP,
-	// meaning that the intersection is not empty.
-	/*
-		if len(id.msp.ouIdentifiers) > 0 {
-			found := false
-
-			for _, OU := range id.GetOrganizationalUnits() {
-				certificationIDs, exists := id.msp.ouIdentifiers[OU.OrganizationalUnitIdentifier]
-
-				if exists {
-					for _, certificationID := range certificationIDs {
-						if bytes.Equal(certificationID, OU.CertifiersIdentifier) {
-							found = true
-							break
-						}
-					}
-				}
-			}
-
-			if !found {
-				if len(id.GetOrganizationalUnits()) == 0 {
-					return errors.New("the identity certificate does not contain an Organizational Unit (OU)")
-				}
-				return errors.Errorf("none of the identity's organizational units [%v] are in MSP %s", id.GetOrganizationalUnits(), id.msp.name)
-			}
-		}
-	*/
+	// currently skip
+	//possible solutions: normal sig, short sig, zk-proof
 	return nil
 }

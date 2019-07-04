@@ -134,41 +134,6 @@ func (msp *clmsp) setupCRLs(conf *m.CLMSPConfig) error {
 	return nil
 }
 
-/*
-func (msp *clmsp) finalizeSetupCAs() error {
-	// ensure that our CAs are properly formed and that they are valid
-	for _, id := range append(append([]Identity{}, msp.rootCerts...), msp.intermediateCerts...) {
-		if !id.(*identity).cert.IsCA {
-			return errors.Errorf("CA Certificate did not have the CA attribute, (SN: %x)", id.(*identity).cert.SerialNumber)
-		}
-		if _, err := getSubjectKeyIdentifierFromCert(id.(*identity).cert); err != nil {
-			return errors.WithMessage(err, fmt.Sprintf("CA Certificate problem with Subject Key Identifier extension, (SN: %x)", id.(*identity).cert.SerialNumber))
-		}
-
-		if err := msp.validateCAIdentity(id.(*identity)); err != nil {
-			return errors.WithMessage(err, fmt.Sprintf("CA Certificate is not valid, (SN: %s)", id.(*identity).cert.SerialNumber))
-		}
-	}
-
-	// populate certificationTreeInternalNodesMap to mark the internal nodes of the
-	// certification tree
-	msp.certificationTreeInternalNodesMap = make(map[string]bool)
-	for _, id := range append([]Identity{}, msp.intermediateCerts...) {
-		chain, err := msp.getUniqueValidationChain(id.(*identity).cert, msp.getValidityOptsForCert(id.(*identity).cert))
-		if err != nil {
-			return errors.WithMessage(err, fmt.Sprintf("failed getting validation chain, (SN: %s)", id.(*identity).cert.SerialNumber))
-		}
-
-		// Recall chain[0] is id.(*identity).id so it does not count as a parent
-		for i := 1; i < len(chain); i++ {
-			msp.certificationTreeInternalNodesMap[string(chain[i].Raw)] = true
-		}
-	}
-
-	return nil
-}
-*/
-
 func (msp *clmsp) setupNodeOUs(config *m.CLMSPConfig) error {
 	if config.FabricNodeOus != nil {
 
@@ -334,11 +299,6 @@ func (msp *clmsp) preSetupV1(conf *m.CLMSPConfig) error {
 	if err := msp.setupCRLs(conf); err != nil {
 		return errors.Wrap(err, "setup CRL error")
 	}
-
-	// Finalize setup of the CAs
-	//if err := msp.finalizeSetupCAs(); err != nil {
-	//	return err
-	//}
 
 	// setup the signer (if present)
 	if err := msp.setupSigningIdentity(conf); err != nil {
