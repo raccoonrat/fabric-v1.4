@@ -30,7 +30,7 @@ Organizations:
         MSPDir: msp
 
         # MSPType specifies the type of MSP.
-        MSPType: ibpcla
+        MSPType: bccsp
 
         # Policies defines the set of policies at this level of the config tree
         # For organization policies, their canonical path is usually

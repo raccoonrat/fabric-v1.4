@@ -166,6 +166,6 @@ func InitCmdFactory(isEndorserRequired, isPeerDeliverRequired, isOrdererRequired
 			return nil, err
 		}
 	}
-	logger.Infof("Endorser and orderer connections initialized!")
+	logger.Infof("Endorser and orderer connections initialized")
 	return cf, nil
 }
