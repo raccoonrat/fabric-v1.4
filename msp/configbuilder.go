@@ -474,14 +474,15 @@ func GetIdemixMspConfig(dir string, ID string) (*msp.MSPConfig, error) {
 }
 
 const (
-	CLKGCPubs = "kgcpubs"
-	CLID      = "CLID"
+	CLKGCPubs  = "kgcpubs"
+	CLID       = "CLID"
+	prlsfolder = "prls"
 )
 
 func GetCLMspConfig(dir string, ID string, sigid *msp.CLMSPSignerConfig) (*msp.MSPConfig, error) {
 	KGCPubDir := filepath.Join(dir, CLKGCPubs)
 	adminconfigFile := filepath.Join(dir, CLID, "AdminConfig")
-	crlsDir := filepath.Join(dir, crlsfolder)
+	prlsDir := filepath.Join(dir, prlsfolder)
 	tlscacertDir := filepath.Join(dir, tlscacerts)
 	tlsintermediatecertsDir := filepath.Join(dir, tlsintermediatecerts)
 
@@ -530,11 +531,11 @@ func GetCLMspConfig(dir string, ID string, sigid *msp.CLMSPSignerConfig) (*msp.M
 		mspLogger.Debugf("TLS CA certs folder at [%s] is empty. Skipping.", tlsintermediatecertsDir)
 	}
 
-	crls, err := getPemMaterialFromDir(crlsDir)
+	prls, err := getPemMaterialFromDir(prlsDir)
 	if os.IsNotExist(err) {
-		mspLogger.Debugf("crls folder not found at [%s]. Skipping. [%s]", crlsDir, err)
+		mspLogger.Debugf("prls folder not found at [%s]. Skipping. [%s]", prlsDir, err)
 	} else if err != nil {
-		return nil, errors.WithMessage(err, fmt.Sprintf("failed loading crls at [%s]", crlsDir))
+		return nil, errors.WithMessage(err, fmt.Sprintf("failed loading prls at [%s]", prlsDir))
 	}
 
 	// Set FabricCryptoConfig
@@ -551,7 +552,7 @@ func GetCLMspConfig(dir string, ID string, sigid *msp.CLMSPSignerConfig) (*msp.M
 		CLSigningIdentity: sigid,
 		Name:              ID,
 		//OrganizationalUnitIdentifiers: ouis,
-		RevocationList:       crls,
+		RevocationList:       prls,
 		CryptoConfig:         cryptoConfig,
 		TlsRootCerts:         tlsCACerts,
 		TlsIntermediateCerts: tlsIntermediateCerts,
