@@ -23,7 +23,7 @@ import (
 const SampleOrg = "peer0.org1.example.com"
 
 func CLgetconfig() (*msp.CLMSPConfig, error) {
-	mspDir, err := configtest.GetDevCLMspDir()
+	mspDir, err := configtest.GetDevMspDir()
 	conf, err = GetLocalCLMspConfig(mspDir, nil, SampleOrg)
 	clconfig := &msp.CLMSPConfig{}
 	err = proto.Unmarshal(conf.Config, clconfig)
@@ -34,7 +34,7 @@ func CLgetconfig() (*msp.CLMSPConfig, error) {
 }
 
 func TestCLMSPNormal(t *testing.T) {
-	mspDir, err := configtest.GetDevCLMspDir()
+	mspDir, err := configtest.GetDevMspDir()
 	if err != nil {
 		fmt.Printf("Errog getting DevMspDir: %s", err)
 		os.Exit(-1)
@@ -111,7 +111,7 @@ func TestCLMSPNormal(t *testing.T) {
 }
 func TestCLMSPParsers(t *testing.T) {
 
-	mspDir, err := configtest.GetDevCLMspDir()
+	mspDir, err := configtest.GetDevMspDir()
 	if err != nil {
 		fmt.Printf("Errog getting DevMspDir: %s", err)
 		os.Exit(-1)
@@ -144,7 +144,7 @@ func TestCLMSPParsers(t *testing.T) {
 }
 
 func TestCLMSPSetupNoCryptoConf(t *testing.T) {
-	mspDir, err := configtest.GetDevCLMspDir()
+	mspDir, err := configtest.GetDevMspDir()
 	if err != nil {
 		fmt.Printf("Errog getting DevMspDir: %s", err)
 		os.Exit(-1)
@@ -302,7 +302,7 @@ func TestCLDeserializeIdentityFails(t *testing.T) {
 }
 
 func TestCLGetSigningIdentityFromVerifyingMSP(t *testing.T) {
-	mspDir, err := configtest.GetDevCLMspDir()
+	mspDir, err := configtest.GetDevMspDir()
 	if err != nil {
 		fmt.Printf("Errog getting DevMspDir: %s", err)
 		os.Exit(-1)
@@ -1307,7 +1307,7 @@ func TestCLProviderTypeToString(t *testing.T) {
 
 func getCLIdentity(t *testing.T, path string) Identity {
 	/*
-			mspDir, err := configtest.GetDevCLMspDir()
+			mspDir, err := configtest.GetDevMspDir()
 			assert.NoError(t, err)
 
 			pems, err := getPemMaterialFromDir(filepath.Join(mspDir, path))

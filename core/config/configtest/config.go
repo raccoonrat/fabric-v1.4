@@ -73,15 +73,6 @@ func GetDevMspDir() (string, error) {
 	return filepath.Join(devDir, "msp"), nil
 }
 
-func GetDevCLMspDir() (string, error) {
-	devDir, err := GetDevConfigDir()
-	if err != nil {
-		return "", fmt.Errorf("Error obtaining DevConfigDir: %s", devDir)
-	}
-
-	return filepath.Join(devDir, "clmsp"), nil
-}
-
 func SetDevFabricConfigPath(t *testing.T) (cleanup func()) {
 	t.Helper()
 
