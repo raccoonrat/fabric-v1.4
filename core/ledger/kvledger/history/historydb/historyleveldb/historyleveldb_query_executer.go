@@ -111,13 +111,14 @@ func (scanner *historyScanner) Next() (commonledger.QueryResult, error) {
 			scanner.namespace, scanner.key, blockNum, tranNum)
 
 		// Get the transaction from block storage that is associated with this history record
-		tranEnvelope, err := scanner.blockStore.RetrieveTxByBlockNumTranNum(blockNum, tranNum)
-		if err != nil {
-			return nil, err
-		}
+		//tranEnvelope, err := scanner.blockStore.RetrieveTxByBlockNumTranNum(blockNum, tranNum)
+		//if err != nil {
+		//	return nil, err
+		//}
 
 		// Get the txid, key write value, timestamp, and delete indicator associated with this transaction
-		queryResult, err := getKeyModificationFromTran(tranEnvelope, scanner.namespace, scanner.key)
+		//queryResult, err := getKeyModificationFromTran(tranEnvelope, scanner.namespace, scanner.key)
+		queryResult, err := scanner.keyModFromTranWithBlockTx(blockNum, tranNum, scanner.namespace, scanner.key)
 		if err != nil {
 			return nil, err
 		}
@@ -125,6 +126,65 @@ func (scanner *historyScanner) Next() (commonledger.QueryResult, error) {
 			scanner.namespace, scanner.key, queryResult.(*queryresult.KeyModification).TxId)
 		return queryResult, nil
 	}
+}
+
+func (scanner *historyScanner) keyModFromTranWithBlockTx(blockNum, txNum uint64, ns, key string) (commonledger.QueryResult, error) {
+	tranEnvelope, err := scanner.blockStore.RetrieveTxByBlockNumTranNum(blockNum, txNum)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf("Entering getKeyModificationFromTran()\n", ns, key)
+
+	// extract action from the envelope
+	payload, err := putils.GetPayload(tranEnvelope)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := putils.GetTransaction(payload.Data)
+	if err != nil {
+		return nil, err
+	}
+
+	_, respPayload, err := putils.GetPayloads(tx.Actions[0])
+	if err != nil {
+		return nil, err
+	}
+
+	chdr, err := putils.UnmarshalChannelHeader(payload.Header.ChannelHeader)
+	if err != nil {
+		return nil, err
+	}
+
+	txID := chdr.TxId
+	timestamp := chdr.Timestamp
+
+	txRWSet := &rwsetutil.TxRwSet{}
+
+	// Get the Result from the Action and then Unmarshal
+	// it into a TxReadWriteSet using custom unmarshalling
+	if err = txRWSet.FromProtoBytes(respPayload.Results); err != nil {
+		return nil, err
+	}
+
+	// look for the namespace and key by looping through the transaction's ReadWriteSets
+	for _, nsRWSet := range txRWSet.NsRwSets {
+		if nsRWSet.NameSpace == namespace {
+			// got the correct namespace, now find the key write
+			for _, kvWrite := range nsRWSet.KvRwSet.Writes {
+				if kvWrite.Key == key {
+					return &queryresult.KeyModification{
+						TxId: txID, Value: kvWrite.Value,
+						Timestamp: timestamp, IsDelete: kvWrite.IsDelete,
+						BlockNum: blockNum, TxNum: txNum,
+					}, nil
+				}
+			} // end keys loop
+			return nil, errors.New("key not found in namespace's writeset")
+		} // end if
+	} //end namespaces loop
+	return nil, errors.New("namespace not found in transaction's ReadWriteSets")
 }
 
 func (scanner *historyScanner) Close() {
