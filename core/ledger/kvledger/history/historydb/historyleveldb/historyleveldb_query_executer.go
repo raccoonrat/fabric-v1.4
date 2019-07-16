@@ -170,7 +170,7 @@ func (scanner *historyScanner) keyModFromTranWithBlockTx(blockNum, txNum uint64,
 
 	// look for the namespace and key by looping through the transaction's ReadWriteSets
 	for _, nsRWSet := range txRWSet.NsRwSets {
-		if nsRWSet.NameSpace == namespace {
+		if nsRWSet.NameSpace == ns {
 			// got the correct namespace, now find the key write
 			for _, kvWrite := range nsRWSet.KvRwSet.Writes {
 				if kvWrite.Key == key {
