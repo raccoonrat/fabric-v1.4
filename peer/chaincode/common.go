@@ -458,6 +458,7 @@ func ChaincodeInvokeOrQuery(
 	//  }
 	//}
 
+	//todo: 加密key参数，干扰集成测试运行，先注释掉
 	//tMap["key"] = []byte(transient)
 	prop, txid, err := putils.CreateChaincodeProposalWithTxIDAndTransient(pcommon.HeaderType_ENDORSER_TRANSACTION, cID, invocation, creator, txID, tMap)
 	if err != nil {
